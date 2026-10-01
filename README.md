@@ -4,6 +4,16 @@
 
 📚 [Interactive architecture diagram](docs/architecture.html) · 🇻🇳 Hướng dẫn tiếng Việt xem trong lịch sử repo
 
+## 🔗 Live demo (public endpoints)
+
+| What | URL |
+|---|---|
+| **Chat UI** (open in browser) | https://endpoint-5bd80bd4-183e-4157-a004-9df9b1d24cd1.agentbase-runtime.aiplatform.vngcloud.vn/ |
+| REST API | https://endpoint-5bd80bd4-183e-4157-a004-9df9b1d24cd1.agentbase-runtime.aiplatform.vngcloud.vn/invocations |
+| Health | https://endpoint-5bd80bd4-183e-4157-a004-9df9b1d24cd1.agentbase-runtime.aiplatform.vngcloud.vn/health |
+
+> Endpoint lives on the demo account — it may be taken down after the demo period; deploy your own with Step 5 below.
+
 ---
 
 ## ✨ The experience — the agent *remembers* you
