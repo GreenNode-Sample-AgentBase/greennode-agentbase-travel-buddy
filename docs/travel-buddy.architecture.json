@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Travel Buddy — AgentBase full-stack",
+    "subtitle": "LangGraph runtime · Memory · LLM · MCP Gateway → Tavily MCP",
+    "output": "architecture.html",
+    "viewBox": [940, 620]
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "Khách duyệt web", "sublabel": "Browser", "pos": [20, 280], "size": [130, 60] },
+    { "id": "runtime", "type": "backend", "label": "travel-buddy Runtime", "sublabel": "LangGraph agent · :8080", "pos": [250, 278], "size": [160, 64] },
+    { "id": "memory", "type": "database", "label": "Memory", "sublabel": "2 strategies: prefs + facts", "pos": [507, 120], "size": [156, 60] },
+    { "id": "llm", "type": "cloud", "label": "LLM API", "sublabel": "GLM · OpenAI-compat", "pos": [520, 280], "size": [130, 60] },
+    { "id": "gateway", "type": "security", "label": "MCP Gateway", "sublabel": "IAM inbound · policy", "pos": [510, 420], "size": [150, 60] },
+    { "id": "tavily", "type": "external", "label": "Tavily MCP", "sublabel": "search/extract", "pos": [760, 420], "size": [130, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "GreenNode AgentBase (IAM service account)", "wraps": ["runtime", "memory", "llm", "gateway"] }
+  ],
+  "connections": [
+    { "from": "user", "to": "runtime", "label": "POST /invocations", "variant": "emphasis" },
+    { "from": "runtime", "to": "memory", "label": "events + records", "fromSide": "top", "toSide": "left", "via": [[330, 150]] },
+    { "from": "runtime", "to": "llm", "label": "chat completions" },
+    { "from": "runtime", "to": "gateway", "label": "tools/list · tools/call", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[330, 381], [585, 381]] },
+    { "from": "gateway", "to": "tavily", "label": "APIKEY outbound", "variant": "security" }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Policy",
+      "items": [
+        "Gateway → Tavily: policy allow-travel-tavily (5 actions)",
+        "Mọi action khác: deny by default",
+        "Inbound IAM service account · Outbound APIKEY"
+      ]
+    }
+  ]
+}
