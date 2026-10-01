@@ -337,7 +337,7 @@ function renderEmptyChat() {
   const hasTarget = state.actor && state.session;
   $("chatMessages").innerHTML = `
     <div class="chat-empty">
-      <div class="chat-empty-icon">🧳✈️</div>
+      <div class="chat-empty-icon">🧭</div>
       <div class="chat-empty-title">${hasTarget
         ? "Bắt đầu trò chuyện với Travel Buddy"
         : "Chọn người dùng &amp; phiên để bắt đầu"}</div>
@@ -463,6 +463,10 @@ function renderUsers() {
     btn.type = "button";
     btn.className = "list-item" + (actor.actorId === state.actor ? " active" : "");
 
+    const icon = document.createElement("span");
+    icon.className = "list-item-icon";
+    icon.textContent = (actor.actorId || "?").charAt(0);
+
     const main = document.createElement("span");
     main.className = "list-item-main";
     main.textContent = actor.actorId;
@@ -470,6 +474,7 @@ function renderUsers() {
     sub.className = "list-item-sub";
     sub.textContent = `${(actor.sessions || []).length} phiên`;
 
+    btn.appendChild(icon);
     btn.appendChild(main);
     btn.appendChild(sub);
     btn.addEventListener("click", () => selectUser(actor.actorId));
@@ -494,9 +499,13 @@ function renderSessions() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "list-item" + (sessionId === state.session ? " active" : "");
+    const icon = document.createElement("span");
+    icon.className = "list-item-icon";
+    icon.textContent = "#";
     const main = document.createElement("span");
     main.className = "list-item-main";
     main.textContent = sessionId;
+    btn.appendChild(icon);
     btn.appendChild(main);
     btn.addEventListener("click", () => selectSession(sessionId));
     box.appendChild(btn);
@@ -505,7 +514,7 @@ function renderSessions() {
 
 function updateChips() {
   $("chipUser").textContent = state.actor ? "@" + state.actor : "@—";
-  $("chipSession").textContent = state.session ? "🆔 " + state.session : "🆔 —";
+  $("chipSession").textContent = state.session || "—";
   $("memoryTitle").textContent = state.actor ? `🧠 Bộ nhớ của ${state.actor}` : "🧠 Bộ nhớ";
 }
 

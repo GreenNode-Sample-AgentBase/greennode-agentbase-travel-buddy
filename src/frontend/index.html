@@ -9,42 +9,49 @@
   <meta property="og:description" content="Trợ lý du lịch có trí nhớ: Memory strategies + MCP Gateway (Tavily) + Policy, chạy trên GreenNode AgentBase.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AD%3C/text%3E%3C/svg%3E">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AD%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- Khung 3 cột: sidebar (người dùng/phiên) | chat | panel bộ nhớ -->
   <div id="layout">
 
-    <!-- ===== CỘT TRÁI: người dùng &amp; phiên hội thoại ===== -->
+    <!-- ===== CỘT TRÁI: người dùng & phiên hội thoại ===== -->
     <aside class="sidebar" aria-label="Người dùng và phiên hội thoại">
       <div class="brand">
-        <div class="brand-logo" aria-hidden="true">🧭</div>
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M15.5 8.5 13.7 13.7 8.5 15.5 10.3 10.3z"/>
+            <path d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21" opacity=".45"/>
+          </svg>
+        </div>
         <div>
           <div class="brand-name">Travel Buddy</div>
           <div class="brand-sub">Trợ lý du lịch có trí nhớ</div>
         </div>
       </div>
 
-      <section class="side-section">
-        <div class="side-title">Người dùng</div>
-        <div id="usersList" class="list"></div>
-        <div class="side-form">
-          <input id="newUserInput" class="side-input" type="text"
-                 placeholder="Tên mới, vd: mai-le" autocomplete="off" spellcheck="false">
-          <button id="newUserBtn" class="btn ghost small" type="button">+ Người dùng mới</button>
-        </div>
-      </section>
+      <div class="side-scroll">
+        <section class="side-section">
+          <div class="side-title">Người dùng</div>
+          <div id="usersList" class="list"></div>
+          <div class="side-form">
+            <input id="newUserInput" class="side-input" type="text"
+                   placeholder="Tên mới, vd: mai-le" autocomplete="off" spellcheck="false">
+            <button id="newUserBtn" class="btn ghost small" type="button">Thêm người dùng</button>
+          </div>
+        </section>
 
-      <section class="side-section">
-        <div class="side-title">Phiên hội thoại</div>
-        <div id="sessionsList" class="list"></div>
-        <button id="newSessionBtn" class="btn ghost small wide" type="button">+ Phiên mới</button>
-      </section>
+        <section class="side-section">
+          <div class="side-title">Phiên hội thoại</div>
+          <div id="sessionsList" class="list"></div>
+          <button id="newSessionBtn" class="btn ghost small wide" type="button">Tạo phiên mới</button>
+        </section>
+      </div>
 
       <!-- Thông tin agent (GET /api/info) -->
       <div class="info-box" id="infoBox">
-        <div class="info-title">ℹ️ Thông tin agent</div>
+        <div class="info-title">Thông tin agent</div>
         <div class="info-line"><span>Agent</span><b id="infoAgent">—</b></div>
         <div class="info-line"><span>Memory ID</span><b id="infoMemory">—</b></div>
         <div class="info-line"><span>Model</span><b id="infoModel">—</b></div>
@@ -56,30 +63,44 @@
     <main class="chat">
       <header class="chat-header">
         <div class="chips">
-          <span class="chip" id="chipUser">@—</span>
-          <span class="chip" id="chipSession">🆔 —</span>
+          <span class="chip chip-user" id="chipUser">@—</span>
+          <span class="chip" id="chipSession">—</span>
           <span class="chip chip-status"><span class="dot" id="statusDot"></span>AgentBase</span>
         </div>
-        <button id="memoryToggle" class="btn ghost small only-narrow" type="button">🧠 Bộ nhớ</button>
+        <button id="memoryToggle" class="btn ghost small only-narrow" type="button">Bộ nhớ</button>
       </header>
 
       <!-- Bong bóng hội thoại được render bằng JS -->
       <div class="chat-messages" id="chatMessages" aria-live="polite"></div>
 
       <footer class="composer">
-        <textarea id="composerInput" rows="1"
-          placeholder="Nhập tin nhắn cho Travel Buddy… (Enter: gửi • Shift+Enter: xuống dòng)"></textarea>
-        <button id="sendBtn" class="btn primary" type="button">Gửi ➤</button>
+        <div class="composer-box">
+          <textarea id="composerInput" rows="1"
+            placeholder="Nhập tin nhắn cho Travel Buddy…  (Enter gửi · Shift+Enter xuống dòng)"></textarea>
+          <button id="sendBtn" class="btn primary send" type="button" aria-label="Gửi tin nhắn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h13M12 5l7 7-7 7"/>
+            </svg>
+            <span>Gửi</span>
+          </button>
+        </div>
+        <div class="composer-hint">Travel Buddy có thể nhớ sở thích của bạn qua các phiên — hỏi gì cũng được.</div>
       </footer>
     </main>
 
     <!-- ===== CỘT PHẢI: bộ nhớ của agent ===== -->
     <aside class="memory-panel" id="memoryPanel" aria-label="Bộ nhớ của agent">
       <div class="panel-head">
-        <div id="memoryTitle" class="panel-title">🧠 Bộ nhớ</div>
+        <div id="memoryTitle" class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a4 4 0 0 0-4 4v1a3 3 0 0 0-1 5.8V16a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3v-2.2a3 3 0 0 0-1-5.8V7a4 4 0 0 0-4-4z"/>
+            <path d="M12 3v18" opacity=".4"/>
+          </svg>
+          Bộ nhớ
+        </div>
         <div class="panel-head-actions">
-          <button id="memoryRefreshBtn" class="btn ghost small" type="button">⟳ Làm mới</button>
-          <button id="panelClose" class="btn ghost small only-narrow" type="button" aria-label="Đóng panel">✕</button>
+          <button id="memoryRefreshBtn" class="btn ghost small" type="button">Làm mới</button>
+          <button id="panelClose" class="btn ghost small only-narrow" type="button" aria-label="Đóng panel">Đóng</button>
         </div>
       </div>
 
@@ -88,7 +109,7 @@
         <div id="memoryBody" class="memory-body"></div>
 
         <section class="panel-section">
-          <div class="panel-section-title">🕘 Hội thoại gần đây</div>
+          <div class="panel-section-title">Hội thoại gần đây</div>
           <div id="recentList" class="recent-list"></div>
         </section>
 
