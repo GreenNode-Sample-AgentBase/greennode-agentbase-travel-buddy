@@ -1,5 +1,8 @@
 # 🧭 Travel Buddy — A Travel Assistant with Memory
 
+[![CI](https://github.com/GreenNode-Sample-AgentBase/greennode-agentbase-travel-buddy/actions/workflows/ci.yml/badge.svg)](https://github.com/GreenNode-Sample-AgentBase/greennode-agentbase-travel-buddy/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > An **end-to-end** sample on **GreenNode AgentBase**: Agent Runtime (LangGraph) + **Memory** (2 strategies) + **MCP Gateway** (IAM + Policy) + **LLM AIP**. Runs locally out of the box **and** deploys straight to your own AgentBase account.
 
 📚 [Interactive architecture diagram](docs/architecture.html) · 🇻🇳 Hướng dẫn tiếng Việt xem trong lịch sử repo
@@ -23,7 +26,7 @@
 | "I love the beach, I'm vegetarian, budget ~5M VND, going to Da Nang in June" | 🔍 Tavily search through the **MCP Gateway** → itinerary + weather • 🧠 `remember` → stores your preferences • the Memory engine auto-extracts records (CUSTOM + SEMANTIC) |
 | Return in a **different session** (days later): "Where should I go next?" | ✨ The UI shows an "**Agent just recalled**" callout • the reply matches your earlier preferences — **no need to repeat yourself** |
 
-The 3-column dark UI: **Users/Sessions** · **Chat** (markdown + ✨ memory callout) · **Memory** (records grouped per strategy, auto-refresh).
+The 3-column dark UI: **Users/Sessions** · **Chat** (markdown + ✨ memory callout, **token-by-token streaming**) · **Memory** (records grouped per strategy, auto-refresh).
 
 ## 🏗 Architecture
 
@@ -108,16 +111,20 @@ Portal: **https://aiplatform.console.vngcloud.vn** → *AI Platform / AgentBase*
 | `MEMORY_STRATEGY_FACTS_ID` | ✅ | the `trip-facts` strategy (SEMANTIC) |
 | `MCP_TAVILY_URL` | ✅ | `<gateway-url>/tavily` |
 | `GREENNODE_CLIENT_ID/SECRET` | local only | only for local runs (the runtime injects them) |
+| `AGENT_API_KEY` | optional | if set, `/invocations` + `/api/*` require the `X-API-Key` header (stops strangers burning your LLM credits) |
+| `DEBUG_OPS` | default `0` | `1` enables the `{"op":"whoami"}` identity op — only while setting up policies |
 
 ## 🔌 API contract (exposed by the backend)
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/invocations` | body `{"message":"…"}` + headers `X-GreenNode-AgentBase-User-Id`, `-Session-Id` → `{"response", "memories_used":[…]}`. `{"op":"whoami"}` → the runtime's identity |
+| POST | `/invocations` | body `{"message":"…"}` + headers `X-GreenNode-AgentBase-User-Id`, `-Session-Id` → `{"response", "memories_used":[…]}`. `{"op":"whoami"}` → the runtime's identity (needs `DEBUG_OPS=1`) |
+| POST | `/api/chat/stream` | same body/headers → **SSE token stream** (`{"type":"token"|"done"|"error"}`) — the UI uses this with automatic fallback to `/invocations` |
 | GET | `/api/memory?actor=<user>` | records grouped by the 2 strategies |
 | GET | `/api/history?actor=&session=` | conversation (events of type `conversational`) |
 | GET | `/api/actors` | users and their sessions |
 | GET | `/api/info` · `/health` | config · health |
+| GET | `/ready` | deep readiness: memory + gateway + LLM (200 ok / 503 degraded) |
 
 ## ✅ Verified end-to-end (demo account)
 
@@ -130,6 +137,20 @@ Portal: **https://aiplatform.console.vngcloud.vn** → *AI Platform / AgentBase*
     -H "X-GreenNode-AgentBase-User-Id: alice" -H "X-GreenNode-AgentBase-Session-Id: s1" \
     -d '{"message":"I love the beach, I am vegetarian, budget 5M VND, going to Da Nang in June"}'
   ```
+
+## 🛡️ Production hardening
+
+The sample ships with these guards — flip them on when deploying publicly:
+
+| Guard | How |
+|---|---|
+| **API key on the endpoint** | set `AGENT_API_KEY=<random>` in the runtime env → `X-API-Key` required on `/invocations` + `/api/*` (the web UI prompts once and stores it in localStorage) |
+| **Hide runtime identity** | keep `DEBUG_OPS=0` (default) — `whoami` is disabled after policy setup |
+| **Policy on the gateway** | already enforced: only this runtime's principal may call `tavily__*` (deny by default) |
+| **Context budget** | the agent trims history to the last 40 messages (cuts at human-message boundaries, keeps the system prompt) |
+| **Transient failures** | gateway calls retry with backoff on connect errors/5xx (idempotent calls); `recall` degrades gracefully instead of failing the turn |
+| **Timezone** | "today" in the system prompt uses `Asia/Ho_Chi_Minh`, not container UTC |
+| **Readiness probe** | `GET /ready` checks memory + gateway + LLM — wire it to your monitor |
 
 ## 💰 Cost & teardown
 

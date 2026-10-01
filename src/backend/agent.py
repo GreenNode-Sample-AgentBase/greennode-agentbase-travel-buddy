@@ -8,8 +8,11 @@ Short-term memory: AgentBaseMemoryEvents checkpointer (events tự log).
 
 from __future__ import annotations
 
+import logging
 import os
+import threading
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from langchain.agents import create_agent
 from langchain_core.tools import StructuredTool
@@ -31,9 +34,59 @@ if not MEMORY_ID:
 if not MCP_TAVILY_URL:
     raise ValueError("MCP_TAVILY_URL là bắt buộc (endpoint connector/target trên MCP Gateway).")
 
+logger = logging.getLogger("travel-buddy")
+
+TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
+MAX_HISTORY_MESSAGES = 40  # trim context session dài (bảo vệ token budget)
+
 PY_TYPE = {"string": str, "integer": int, "number": float, "boolean": bool, "array": list, "object": dict}
 _tools_cache: list | None = None
 _agent_cache = None
+_tools_lock = threading.Lock()   # lock riêng cho tools cache
+_agent_lock = threading.Lock()   # lock riêng cho agent cache
+# LƯU Ý: KHÔNG dùng chung 1 Lock — get_agent giữ lock rồi gọi get_mcp_tools
+# xin lại lock đó trên cùng thread → self-deadlock.
+
+class _TrimmingEvents(AgentBaseMemoryEvents):
+    """Checkpointer + trim context: mỗi lần put, cap messages về
+    system prompt + MAX_HISTORY_MESSAGES message cuối (cắt tại biên HumanMessage
+    để không vỡ cặp tool_call/tool). Hoạt động với mọi version langchain."""
+
+    def put(self, config, checkpoint, metadata, new_versions):
+        try:
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            vals = (checkpoint or {}).get("channel_values") or {}
+            msgs = vals.get("messages")
+            if msgs and len(msgs) > MAX_HISTORY_MESSAGES:
+                tail = list(msgs)[-MAX_HISTORY_MESSAGES:]
+                for i, m in enumerate(tail):
+                    if isinstance(m, HumanMessage):
+                        tail = tail[i:]
+                        break
+                sys_msgs = [m for m in msgs if isinstance(m, SystemMessage)][:1]
+                vals["messages"] = sys_msgs + tail
+        except Exception:
+            pass  # trim là tối ưu — không được làm hỏng checkpoint
+        return super().put(config, checkpoint, metadata, new_versions)
+
+
+
+def _trim_messages(state: dict) -> dict:
+    """pre_model_hook: giữ system prompt + 40 message cuối, cắt ở biên HumanMessage
+    để không làm vỡ cặp tool_call/tool của LangGraph."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    msgs = list(state.get("messages") or [])
+    if len(msgs) <= MAX_HISTORY_MESSAGES:
+        return {"llm_input_messages": msgs}
+    tail = msgs[-MAX_HISTORY_MESSAGES:]
+    for i, m in enumerate(tail):  # không bắt đầu giữa cặp AI-tool
+        if isinstance(m, HumanMessage):
+            tail = tail[i:]
+            break
+    sys_msgs = [m for m in msgs if isinstance(m, SystemMessage)][:1]
+    return {"llm_input_messages": sys_msgs + tail}
 
 
 def _schema_to_model(tool_def: dict):
@@ -81,37 +134,42 @@ def _make_tool(tool_def: dict) -> StructuredTool:
 def get_mcp_tools() -> list:
     """Nạp tools từ MCP endpoint (cache 1 lần, trả về [] nếu policy chặn tools/call)."""
     global _tools_cache
-    if _tools_cache is None:
-        try:
-            _tools_cache = [_make_tool(d) for d in mcp_client.list_tools(MCP_TAVILY_URL)]
-        except Exception as e:
-            print(f"[travel-buddy] không nạp được MCP tools: {e}", flush=True)
-            _tools_cache = []
-    return _tools_cache
+    with _tools_lock:
+        if _tools_cache is None:
+            try:
+                _tools_cache = [_make_tool(d) for d in mcp_client.list_tools(MCP_TAVILY_URL)]
+            except Exception as e:
+                logger.warning("không nạp được MCP tools: %s", e)
+                _tools_cache = []
+        return _tools_cache
+
 
 
 def get_agent():
-    """LangChain agent + checkpointer (short-term memory) + tools."""
+    """LangChain agent + checkpointer (short-term memory + trim) + tools."""
     global _agent_cache
-    if _agent_cache is None:
+    with _agent_lock:
+        if _agent_cache is not None:
+            return _agent_cache
         llm = ChatOpenAI(model=LLM_MODEL, base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
-        checkpointer = AgentBaseMemoryEvents(memory_id=MEMORY_ID)
-        today = datetime.now().strftime("%Y-%m-%d (%A)")
+        checkpointer = _TrimmingEvents(memory_id=MEMORY_ID)
+        today = datetime.now(TZ_VN).strftime("%Y-%m-%d (%A)")
         _agent_cache = create_agent(
             llm,
             tools=[*get_mcp_tools(), remember, recall],
-            system_prompt=(
-                f"Hôm nay là {today}.\n"
-                "Bạn là 'Travel Buddy' — trợ lý du lịch cá nhân hoá, nói tiếng Việt thân thiện.\n"
-                "Bạn có bộ nhớ dài hạn theo từng người dùng:\n"
-                "- Dùng tool 'recall' để tra sở thích/trips trước khi gợi ý.\n"
-                "- Dùng tool 'remember' khi người dùng nói rõ sở thích mới (budget, kiểu du lịch, ăn uống...).\n"
-                "Bạn có các tool web search qua MCP Gateway — dùng khi cần thông tin thực tế "
-                "(địa điểm, thời tiết, giá). Luôn cite nguồn URL khi dùng kết quả web."
-            ),
+                system_prompt=(
+                    f"Hôm nay là {today}.\n"
+                    "Bạn là 'Travel Buddy' — trợ lý du lịch cá nhân hoá, nói tiếng Việt thân thiện.\n"
+                    "Bạn có bộ nhớ dài hạn theo từng người dùng:\n"
+                    "- Dùng tool 'recall' để tra sở thích/trips trước khi gợi ý.\n"
+                    "- Dùng tool 'remember' khi người dùng nói rõ sở thích mới (budget, kiểu du lịch, ăn uống...).\n"
+                    "Bạn có các tool web search qua MCP Gateway — dùng khi cần thông tin thực tế "
+                    "(địa điểm, thời tiết, giá). Luôn cite nguồn URL khi dùng kết quả web."
+                ),
             checkpointer=checkpointer,
         )
-    return _agent_cache
+        return _agent_cache
+
 
 def _jwt_claims(token: str) -> dict:
     import base64

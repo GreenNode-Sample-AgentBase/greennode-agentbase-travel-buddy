@@ -15,12 +15,16 @@ Chạy local:  uvicorn không cần — `python main.py` (SDK tự chạy server
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.staticfiles import StaticFiles
 
 from greennode_agentbase import (
@@ -34,17 +38,57 @@ import memory_tools
 from memory_tools import run_coro
 from mcp_client import mcp_request
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s | %(message)s",
+)
+logger = logging.getLogger("travel-buddy")
+
 app = GreenNodeAgentBaseApp()
 
 MEMORY_ID = os.environ.get("AGENTBASE_MEMORY_ID", "")
 MCP_TAVILY_URL = os.environ.get("MCP_TAVILY_URL", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "")
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+# AGENT_API_KEY (optional): đặt trong production để chặn người lạ xài LLM của bạn
+AGENT_API_KEY = os.environ.get("AGENT_API_KEY", "").strip()
+# DEBUG_OPS=1: bật op whoami (lộ identity runtime — chỉ dùng lúc setup policy)
+DEBUG_OPS = os.environ.get("DEBUG_OPS", "0").strip() in ("1", "true", "yes")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 def _now() -> str:
-    return datetime.now().isoformat()
+    return datetime.now(TZ_VN).isoformat()
+
+
+# ── API-key middleware: bảo vệ /invocations + /api/* (trừ /api/info) ──
+class ApiKeyMiddleware:
+    """Pure-ASGI middleware. Không đặt AGENT_API_KEY → mở (local dev)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and AGENT_API_KEY:
+            path = scope.get("path", "")
+            protected = path == "/invocations" or (
+                path.startswith("/api/") and path != "/api/info"
+            )
+            if protected:
+                headers = {
+                    k.decode("latin-1").lower(): v.decode("latin-1")
+                    for k, v in scope.get("headers", [])
+                }
+                if headers.get("x-api-key") != AGENT_API_KEY:
+                    resp = JSONResponse(
+                        {"status": "error", "error": "Unauthorized — thiếu/sai header X-API-Key"},
+                        status_code=401,
+                    )
+                    await resp(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
 
 
 def _get_user_id(context) -> str:
@@ -65,6 +109,11 @@ def _get_user_id(context) -> str:
 def handler(payload: dict, context: RequestContext) -> dict:
     """Chat entrypoint — BẮT BUỘC có 2 headers user/session (memory integration)."""
     if payload.get("op") == "whoami":
+        if not DEBUG_OPS:
+            return {
+                "status": "error",
+                "error": "whoami bị tắt. Set DEBUG_OPS=1 (chỉ dùng lúc setup policy) rồi restart runtime.",
+            }
         return {"status": "success", "agent": "travel-buddy", **agent_mod.whoami()}
 
     user_id = _get_user_id(context)
@@ -128,6 +177,8 @@ async def _api_info(request: Request) -> JSONResponse:
             "mcp_url": MCP_TAVILY_URL,
             "llm_model": LLM_MODEL,
             "gateway": MCP_TAVILY_URL.split("/tavily")[0] if "/tavily" in MCP_TAVILY_URL else "",
+            "auth_required": bool(AGENT_API_KEY),
+            "streaming": True,
         }
     )
 
@@ -196,10 +247,119 @@ async def _api_actors(request: Request) -> JSONResponse:
         return JSONResponse({"actors": [], "error": str(e)[:200]})
 
 
+# ── /api/chat/stream: SSE stream token từ LLM (fallback tự động ở frontend) ──
+async def _chat_stream(request: Request) -> StreamingResponse:
+    """POST /api/chat/stream — body {"message":...} + headers user/session.
+
+    SSE events: {"type":"token","text":...} · {"type":"done","response":...,
+    "memories_used":[...]} · {"type":"error","error":...}
+    """
+    if AGENT_API_KEY and request.headers.get("X-API-Key") != AGENT_API_KEY:
+        return JSONResponse({"status": "error", "error": "Unauthorized"}, status_code=401)
+    user_id = request.headers.get("X-GreenNode-AgentBase-User-Id", "")
+    session_id = request.headers.get("X-GreenNode-AgentBase-Session-Id", "")
+    if not user_id or not session_id:
+        return JSONResponse(
+            {"status": "error", "error": "Thiếu headers X-GreenNode-AgentBase-User-Id / -Session-Id"},
+            status_code=400,
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    message = body.get("message") or body.get("input") or "Hello"
+
+    # Kiến trúc: agent chạy trên PERSISTENT LOOP (giống /invocations — SDK MemoryClient
+    # cache theo event loop), event được relay sang SSE generator qua queue thread-safe.
+    uv_loop = asyncio.get_running_loop()
+    out_q: asyncio.Queue = asyncio.Queue()
+
+    async def _produce():
+        """Chạy TRÊN persistent loop: stream events + thu reply + lưu history."""
+        reply = ""
+        memories_used: list[str] = []
+        agent = agent_mod.get_agent()
+        try:
+            async for ev in agent.astream_events(
+                {"messages": [{"role": "user", "content": message}]},
+                config={"configurable": {"thread_id": session_id, "actor_id": user_id}},
+            ):
+                if ev["event"] == "on_chat_model_stream":
+                    token = ev["data"].get("chunk").content or ""
+                    if isinstance(token, str) and token:
+                        reply += token
+                        uv_loop.call_soon_threadsafe(out_q.put_nowait, ("token", token))
+                elif ev["event"] == "on_tool_end" and ev["name"] in ("remember", "recall"):
+                    out = str(ev["data"].get("output") or "")
+                    if out.startswith("Đã nhớ: "):
+                        memories_used.append(out[len("Đã nhớ: "):])
+                    else:
+                        for line in out.splitlines():
+                            line = line.strip()
+                            if line.startswith("- ") and " (score:" in line:
+                                memories_used.append(line[2:].split(" (score:")[0])
+            if reply:
+                try:
+                    await memory_tools.add_chat_events(user_id, session_id, message, reply)
+                except Exception:
+                    logger.warning("lưu history sau stream thất bại (bỏ qua)")
+            uv_loop.call_soon_threadsafe(out_q.put_nowait, ("done", (reply, memories_used)))
+        except Exception as e:
+            logger.exception("stream error")
+            uv_loop.call_soon_threadsafe(out_q.put_nowait, ("error", f"{type(e).__name__}: {e}"))
+
+    threading.Thread(
+        target=lambda: memory_tools.run_coro(_produce()),
+        daemon=True,
+        name=f"sse-{session_id[:20]}",
+    ).start()
+
+    async def gen():
+        reply = ""
+        memories_used: list[str] = []
+        try:
+            while True:
+                kind, payload = await out_q.get()
+                if kind == "token":
+                    yield f"data: {json.dumps({'type': 'token', 'text': payload}, ensure_ascii=False)}\n\n"
+                elif kind == "done":
+                    reply, memories_used = payload
+                    break
+                else:  # error
+                    yield f"data: {json.dumps({'type': 'error', 'error': payload}, ensure_ascii=False)}\n\n"
+                    return
+            yield f"data: {json.dumps({'type': 'done', 'response': reply, 'memories_used': memories_used}, ensure_ascii=False)}\n\n"
+        except Exception as e:  # client đóng kết nối giữa chừng
+            logger.info("SSE client ngắt (session=%s): %s", session_id, e)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+# ── /ready: health check sâu (memory + gateway + LLM) cho ops ──
+async def _ready(request: Request) -> JSONResponse:
+    checks: dict = {}
+    try:
+        memory_tools.list_actors_sync()
+        checks["memory"] = {"ok": True}
+    except Exception as e:
+        checks["memory"] = {"ok": False, "error": str(e)[:150]}
+    try:
+        tools = agent_mod.get_mcp_tools()
+        checks["gateway"] = {"ok": bool(tools), "tools": len(tools)}
+    except Exception as e:
+        checks["gateway"] = {"ok": False, "error": str(e)[:150]}
+    checks["llm"] = {"ok": bool(LLM_API_KEY), "model": LLM_MODEL}
+    ok = all(c.get("ok") for c in checks.values())
+    return JSONResponse({"status": "ok" if ok else "degraded", "checks": checks}, status_code=200 if ok else 503)
+
+
+app.add_route("/ready", _ready, methods=["GET"])
+app.add_route("/api/chat/stream", _chat_stream, methods=["POST"])
 app.add_route("/api/info", _api_info, methods=["GET"])
 app.add_route("/api/memory", _api_memory, methods=["GET"])
 app.add_route("/api/history", _api_history, methods=["GET"])
 app.add_route("/api/actors", _api_actors, methods=["GET"])
+app.add_middleware(ApiKeyMiddleware)
 # Static frontend — mount CUỐI cùng để không che các route trên
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="ui")
 

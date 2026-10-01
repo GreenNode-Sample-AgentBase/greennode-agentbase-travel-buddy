@@ -642,3 +642,16 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+
+/* ------------------- Streaming cursor ------------------- */
+
+.stream-cursor {
+  animation: stream-blink 0.9s steps(2, start) infinite;
+  color: #14b8a6;
+  font-weight: 600;
+}
+
+@keyframes stream-blink {
+  to { visibility: hidden; }
+}

@@ -72,6 +72,20 @@ def run_coro(coro, timeout: float = 600):
     loop = _ensure_loop()
     return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=timeout)
 
+async def _with_retry(coro_factory, attempts: int = 2, delay: float = 0.6):
+    """Retry 1 lần cho lỗi tạm thời (HTTP 5xx) từ Memory service."""
+    import asyncio
+
+    try:
+        return await coro_factory()
+    except Exception as first:
+        await asyncio.sleep(delay)
+        try:
+            return await coro_factory()
+        except Exception:
+            raise first
+
+
 def get_actor_id() -> str:
     """actor_id từ LangGraph configurable (set khi agent.invoke)."""
     config = get_config()
@@ -92,11 +106,15 @@ async def remember(fact: str) -> str:
         fact: Sự kiện cần ghi nhớ, viết thành 1 câu hoàn chỉnh.
     """
     actor = get_actor_id()
-    await memory_client().insert_memory_records_directly_async(
-        id=MEMORY_ID,
-        namespace=build_namespace(actor),
-        request=MemoryRecordInsertDirectlyRequest(memoryRecords=[fact]),
-    )
+
+    async def _go():
+        return await memory_client().insert_memory_records_directly_async(
+            id=MEMORY_ID,
+            namespace=build_namespace(actor),
+            request=MemoryRecordInsertDirectlyRequest(memoryRecords=[fact]),
+        )
+
+    await _with_retry(_go)
     return f"Đã nhớ: {fact}"
 
 
@@ -108,11 +126,18 @@ async def recall(query: str) -> str:
         query: Câu truy vấn ngôn ngữ tự nhiên (VD: 'sở thích du lịch của tôi').
     """
     actor = get_actor_id()
-    results = await memory_client().search_memory_records_async(
-        id=MEMORY_ID,
-        namespace=build_namespace(actor),
-        request=MemoryRecordSearchRequest(query=query, limit=20),
-    )
+
+    async def _go():
+        return await memory_client().search_memory_records_async(
+            id=MEMORY_ID,
+            namespace=build_namespace(actor),
+            request=MemoryRecordSearchRequest(query=query, limit=20),
+        )
+
+    try:
+        results = await _with_retry(_go)
+    except Exception as e:  # degrade gracefully — recall fail không phá turn
+        return f"(Bộ nhớ tạm thời không khả dụng — {type(e).__name__}; hãy trả lời bình thường.)"
     if not results:
         return "Chưa có thông tin nào trong bộ nhớ."
     return "\n".join(f"- {_field(r, 'memory')} (score: {float(_field(r, 'score', 0) or 0):.2f})" for r in results)

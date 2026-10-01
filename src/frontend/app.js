@@ -16,7 +16,18 @@ const API = {
   MEMORY: "/api/memory",
   HISTORY: "/api/history",
   ACTORS: "/api/actors",
+  STREAM: "/api/chat/stream",
 };
+
+// API key (khi backend bật AGENT_API_KEY) — lưu localStorage, tự đính kèm mọi request
+const KEY_STORAGE = "travel_buddy_api_key";
+function apiKey() { try { return localStorage.getItem(KEY_STORAGE) || ""; } catch { return ""; } }
+function authHeaders(extra = {}) {
+  const h = Object.assign({}, extra);
+  const k = apiKey();
+  if (k) h["X-API-Key"] = k;
+  return h;
+}
 
 // Header bắt buộc khi POST /invocations
 const HDR_USER = "X-GreenNode-AgentBase-User-Id";
@@ -139,6 +150,7 @@ function renderMarkdown(raw) {
 /* ------------------- Lớp gọi API (cùng origin) ------------------- */
 
 async function requestJson(url, options = {}) {
+  options.headers = authHeaders(options.headers || {});
   let res;
   try {
     res = await fetch(url, options);
@@ -164,6 +176,95 @@ function postInvocation(message) {
     },
     body: JSON.stringify({ message }),
   });
+}
+
+/* ---------- Streaming SSE: POST /api/chat/stream ---------- */
+
+// Bong bóng live cho token stream (render text thô khi đang stream)
+function appendLiveBotBubble() {
+  const wrap = document.createElement("div");
+  wrap.className = "msg bot";
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = "🧭";
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  const name = document.createElement("div");
+  name.className = "msg-name";
+  name.textContent = "Travel Buddy";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble md streaming";
+  const cursor = document.createElement("span");
+  cursor.className = "stream-cursor";
+  cursor.textContent = "▍";
+  bubble.appendChild(cursor);
+  body.appendChild(name);
+  body.appendChild(bubble);
+  wrap.appendChild(avatar);
+  wrap.appendChild(body);
+  $("chatMessages").appendChild(wrap);
+  scrollToBottom();
+  return { wrap: wrap, bubble: bubble, body: body };
+}
+
+// Gọi stream; mỗi token → render dần; xong → markdown + callout như bubble thường
+async function postStream(message, typing) {
+  const res = await fetch(API.STREAM, {
+    method: "POST",
+    headers: authHeaders({
+      "Content-Type": "application/json",
+      [HDR_USER]: state.actor,
+      [HDR_SESSION]: state.session,
+    }),
+    body: JSON.stringify({ message }),
+  });
+  const ct = res.headers.get("content-type") || "";
+  if (!res.ok || !ct.includes("text/event-stream")) {
+    let data = null;
+    try { data = await res.json(); } catch { /* không phải JSON */ }
+    throw new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+  }
+
+  const live = appendLiveBotBubble();
+  let full = "";
+  let memoriesUsed = [];
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const parts = buf.split("\n\n");
+    buf = parts.pop() || "";
+    for (const part of parts) {
+      const line = part.split("\n").find((l) => l.startsWith("data:"));
+      if (!line) continue;
+      let ev = null;
+      try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+      if (ev.type === "token") {
+        full += ev.text || "";
+        live.bubble.textContent = full;
+        const cursor = document.createElement("span");
+        cursor.className = "stream-cursor";
+        cursor.textContent = "▍";
+        live.bubble.appendChild(cursor);
+        scrollToBottom();
+      } else if (ev.type === "done") {
+        full = ev.response || full;
+        memoriesUsed = ev.memories_used || [];
+        live.bubble.classList.remove("streaming");
+        live.bubble.innerHTML = renderMarkdown(full);
+        if (memoriesUsed.length) live.body.appendChild(buildMemoryCallout(memoriesUsed));
+        scrollToBottom();
+      } else if (ev.type === "error") {
+        throw new Error(ev.error || "Lỗi stream.");
+      }
+    }
+  }
+  if (!full) throw new Error("Stream kết thúc mà không có nội dung.");
+  return { status: "success", response: full, memories_used: memoriesUsed };
 }
 
 /* ------------------- Chat: bong bóng tin nhắn ------------------- */
@@ -312,6 +413,17 @@ async function loadInfo() {
   } catch (e) {
     setDot("err");
     showToast("Không tải được /api/info: " + e.message);
+  }
+}
+
+// Backend bật AGENT_API_KEY nhưng chưa có key → hỏi 1 lần, lưu localStorage
+function ensureApiKey() {
+  if (!state.info || !state.info.auth_required || apiKey()) return;
+  const k = window.prompt(
+    "Endpoint này được bảo vệ bằng API key (biến AGENT_API_KEY khi deploy).\nNhập API key:",
+  );
+  if (k) {
+    try { localStorage.setItem(KEY_STORAGE, k.trim()); } catch { /* private mode */ }
   }
 }
 
@@ -524,13 +636,23 @@ async function sendMessage() {
   const typing = showTypingIndicator();
 
   try {
-    const data = await postInvocation(text);
+    // ① Thử streaming SSE — token render dần trong bong bóng live
+    let data;
+    try {
+      data = await postStream(text, typing);
+    } catch (streamErr) {
+      // ② Streaming không khả dụng (404/401/lỗi mạng) → fallback /invocations
+      const fallback = await postInvocation(text);
+      if (!fallback || fallback.status !== "success") {
+        throw new Error((fallback && fallback.error) || streamErr.message || "Agent trả về lỗi.");
+      }
+      data = fallback;
+    }
     typing.stop();
-    if (!data || data.status !== "success") {
+    if (!data || data.status === "error") {
       throw new Error((data && data.error) || "Agent trả về lỗi.");
     }
     setDot("ok");
-    appendBubble("bot", data.response || "", data.memories_used || []);
     loadMemory();            // tự làm mới bộ nhớ sau mỗi câu trả lời của bot
     refreshActorsSilently(); // actor/phiên mới có thể xuất hiện trên server
   } catch (e) {
@@ -722,6 +844,7 @@ function bindEvents() {
 async function init() {
   bindEvents();
   await loadInfo();
+  ensureApiKey(); // nếu backend bật AGENT_API_KEY mà chưa có key → hỏi 1 lần
   await loadActors();
 }
 
