@@ -111,7 +111,7 @@ Portal: **https://aiplatform.console.vngcloud.vn** → *AI Platform / AgentBase*
 | `MEMORY_STRATEGY_FACTS_ID` | ✅ | the `trip-facts` strategy (SEMANTIC) |
 | `MCP_TAVILY_URL` | ✅ | `<gateway-url>/tavily` |
 | `GREENNODE_CLIENT_ID/SECRET` | local only | only for local runs (the runtime injects them) |
-| `AGENT_API_KEY` | optional | if set, `/invocations` + `/api/*` require the `X-API-Key` header (stops strangers burning your LLM credits) |
+| `AGENT_API_KEY` | optional | if set, `/invocations` + `/api/*` require the `X-API-Key` header (stops strangers burning your LLM credits). **Leave it unset for a frictionless demo** — the bundled UI never asks for a key |
 | `DEBUG_OPS` | default `0` | `1` enables the `{"op":"whoami"}` identity op — only while setting up policies |
 
 ## 🔌 API contract (exposed by the backend)
@@ -144,7 +144,7 @@ The sample ships with these guards — flip them on when deploying publicly:
 
 | Guard | How |
 |---|---|
-| **API key on the endpoint** | set `AGENT_API_KEY=<random>` in the runtime env → `X-API-Key` required on `/invocations` + `/api/*` (the web UI prompts once and stores it in localStorage) |
+| **API key on the endpoint** | set `AGENT_API_KEY=<random>` in the runtime env → `X-API-Key` required on `/invocations` + `/api/*` (for API clients; the live demo runs without it so the UI is zero-friction) |
 | **Hide runtime identity** | keep `DEBUG_OPS=0` (default) — `whoami` is disabled after policy setup |
 | **Policy on the gateway** | already enforced: only this runtime's principal may call `tavily__*` (deny by default) |
 | **Context budget** | the agent trims history to the last 40 messages (cuts at human-message boundaries, keeps the system prompt) |

@@ -19,16 +19,6 @@ const API = {
   STREAM: "/api/chat/stream",
 };
 
-// API key (khi backend bật AGENT_API_KEY) — lưu localStorage, tự đính kèm mọi request
-const KEY_STORAGE = "travel_buddy_api_key";
-function apiKey() { try { return localStorage.getItem(KEY_STORAGE) || ""; } catch { return ""; } }
-function authHeaders(extra = {}) {
-  const h = Object.assign({}, extra);
-  const k = apiKey();
-  if (k) h["X-API-Key"] = k;
-  return h;
-}
-
 // Header bắt buộc khi POST /invocations
 const HDR_USER = "X-GreenNode-AgentBase-User-Id";
 const HDR_SESSION = "X-GreenNode-AgentBase-Session-Id";
@@ -150,7 +140,6 @@ function renderMarkdown(raw) {
 /* ------------------- Lớp gọi API (cùng origin) ------------------- */
 
 async function requestJson(url, options = {}) {
-  options.headers = authHeaders(options.headers || {});
   let res;
   try {
     res = await fetch(url, options);
@@ -211,11 +200,11 @@ function appendLiveBotBubble() {
 async function postStream(message, typing) {
   const res = await fetch(API.STREAM, {
     method: "POST",
-    headers: authHeaders({
+    headers: {
       "Content-Type": "application/json",
       [HDR_USER]: state.actor,
       [HDR_SESSION]: state.session,
-    }),
+    },
     body: JSON.stringify({ message }),
   });
   const ct = res.headers.get("content-type") || "";
@@ -413,17 +402,6 @@ async function loadInfo() {
   } catch (e) {
     setDot("err");
     showToast("Không tải được /api/info: " + e.message);
-  }
-}
-
-// Backend bật AGENT_API_KEY nhưng chưa có key → hỏi 1 lần, lưu localStorage
-function ensureApiKey() {
-  if (!state.info || !state.info.auth_required || apiKey()) return;
-  const k = window.prompt(
-    "Endpoint này được bảo vệ bằng API key (biến AGENT_API_KEY khi deploy).\nNhập API key:",
-  );
-  if (k) {
-    try { localStorage.setItem(KEY_STORAGE, k.trim()); } catch { /* private mode */ }
   }
 }
 
@@ -853,7 +831,6 @@ function bindEvents() {
 async function init() {
   bindEvents();
   await loadInfo();
-  ensureApiKey(); // nếu backend bật AGENT_API_KEY mà chưa có key → hỏi 1 lần
   await loadActors();
 }
 
