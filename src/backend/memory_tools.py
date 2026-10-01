@@ -1,0 +1,202 @@
+"""Memory helpers: long-term memory (records) qua MemoryClient SDK.
+
+actor_id LUÔN lấy từ RequestContext (headers X-GreenNode-AgentBase-User-Id)
+— KHÔNG bao giờ để LLM tự quyết định truy cập bộ nhớ của user nào.
+strategy_id là config mức deployment (env), không phải tham số tool.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+
+from langchain_core.tools import tool
+from langgraph.config import get_config
+from greennode_agentbase.memory import MemoryClient
+from greennode_agentbase.memory.models import (
+    MemoryRecordInsertDirectlyRequest,
+    MemoryRecordSearchRequest,
+)
+
+MEMORY_ID = os.environ.get("AGENTBASE_MEMORY_ID", "")
+MEMORY_STRATEGY_PREF_ID = os.environ.get("MEMORY_STRATEGY_PREF_ID", "")
+MEMORY_STRATEGY_FACTS_ID = os.environ.get("MEMORY_STRATEGY_FACTS_ID", "")
+
+_client: MemoryClient | None = None
+
+
+def memory_client() -> MemoryClient:
+    global _client
+    if _client is None:
+        # MemoryClient tự đọc GREENNODE_CLIENT_ID/SECRET từ env
+        _client = MemoryClient()
+    return _client
+
+
+def _field(r, key: str, default=""):
+    """SDK 1.0.3 trả record/event dạng dict (hoặc object) — đọc field an toàn."""
+    if isinstance(r, dict):
+        v = r.get(key, default)
+    else:
+        v = getattr(r, key, default)
+    return v if v is not None else default
+
+
+
+
+
+# ── Persistent event loop: mọi SDK/memory call chạy trên 1 loop duy nhất ──
+# (SDK cache client theo event loop; nhiều loop → "Event loop is closed")
+_loop = None
+_loop_lock = threading.Lock()
+
+
+def _ensure_loop():
+    global _loop
+    with _loop_lock:
+        if _loop is None or _loop.is_closed():
+            import asyncio
+            import threading
+
+            _loop = asyncio.new_event_loop()
+            threading.Thread(
+                target=_loop.run_forever, daemon=True, name="agent-memory-loop"
+            ).start()
+    return _loop
+
+
+def run_coro(coro, timeout: float = 600):
+    """Chạy coroutine trên persistent loop, block tới khi xong."""
+    import asyncio
+
+    loop = _ensure_loop()
+    return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=timeout)
+
+def get_actor_id() -> str:
+    """actor_id từ LangGraph configurable (set khi agent.invoke)."""
+    config = get_config()
+    return (config.get("configurable") or {}).get("actor_id", "")
+
+
+def build_namespace(actor_id: str, strategy_id: str = "") -> str:
+    """Namespace template mặc định: /strategies/{memoryStrategyId}/actors/{actorId}."""
+    sid = strategy_id or MEMORY_STRATEGY_PREF_ID
+    return f"/strategies/{sid}/actors/{actor_id}"
+
+
+@tool
+async def remember(fact: str) -> str:
+    """Lưu một sự kiện/sở thích của người dùng vào bộ nhớ dài hạn.
+
+    Args:
+        fact: Sự kiện cần ghi nhớ, viết thành 1 câu hoàn chỉnh.
+    """
+    actor = get_actor_id()
+    await memory_client().insert_memory_records_directly_async(
+        id=MEMORY_ID,
+        namespace=build_namespace(actor),
+        request=MemoryRecordInsertDirectlyRequest(memoryRecords=[fact]),
+    )
+    return f"Đã nhớ: {fact}"
+
+
+@tool
+async def recall(query: str) -> str:
+    """Tìm kiếm trong bộ nhớ dài hạn các thông tin liên quan về người dùng.
+
+    Args:
+        query: Câu truy vấn ngôn ngữ tự nhiên (VD: 'sở thích du lịch của tôi').
+    """
+    actor = get_actor_id()
+    results = await memory_client().search_memory_records_async(
+        id=MEMORY_ID,
+        namespace=build_namespace(actor),
+        request=MemoryRecordSearchRequest(query=query, limit=20),
+    )
+    if not results:
+        return "Chưa có thông tin nào trong bộ nhớ."
+    return "\n".join(f"- {_field(r, 'memory')} (score: {float(_field(r, 'score', 0) or 0):.2f})" for r in results)
+
+
+async def search_facts(actor_id: str, query: str, limit: int = 20) -> list[dict]:
+    """Search records cho 1 actor — dùng để inject context / hiển thị UI."""
+    results = await memory_client().search_memory_records_async(
+        id=MEMORY_ID,
+        namespace=build_namespace(actor_id),
+        request=MemoryRecordSearchRequest(query=query, limit=limit),
+    )
+    return [
+        {"id": _field(r, "id"), "memory": _field(r, "memory"), "score": _field(r, "score", 0)}
+        for r in results
+    ]
+
+
+async def browse_group(actor_id: str, strategy_id: str, limit: int = 100) -> list[dict]:
+    """Browse toàn bộ records của 1 strategy namespace (cho memory panel)."""
+    records = await memory_client().list_memory_records_async(
+        id=MEMORY_ID,
+        namespace=build_namespace(actor_id, strategy_id),
+    )
+    return [
+        {
+            "id": _field(r, "id"),
+            "memory": _field(r, "memory"),
+            "createdAt": str(_field(r, "created_at", "") or _field(r, "createdAt", "")),
+        }
+        for r in list(records)[:limit]
+    ]
+
+def browse_group_sync(actor_id: str, strategy_id: str, limit: int = 100) -> list:
+    return run_coro(browse_group(actor_id, strategy_id, limit))
+
+
+def list_events_sync(actor_id: str, session_id: str, size: int = 50) -> list:
+    async def _go():
+        result = await memory_client().list_events_async(
+            id=MEMORY_ID, actorId=actor_id, sessionId=session_id, page=1, size=size
+        )
+        return list(result.list_data)
+
+    return run_coro(_go())
+
+
+def list_actors_sync() -> list:
+    async def _go():
+        result = await memory_client().list_actors_async(id=MEMORY_ID, page=1, size=50)
+        out = []
+        for a in list(result.list_data):
+            aid = _field(a, "actor_id") or _field(a, "actorId")
+            sessions = []
+            try:
+                sess = await memory_client().list_sessions_async(id=MEMORY_ID, actorId=aid, page=1, size=20)
+                sessions = [_field(s, "session_id") or _field(s, "sessionId") for s in list(sess.list_data)]
+            except Exception:
+                pass
+            out.append({"actorId": aid, "sessions": sorted({x for x in sessions if x})})
+        return out
+
+    return run_coro(_go())
+
+
+async def add_chat_events(actor_id: str, session_id: str, user_text: str, bot_text: str) -> None:
+    """Ghi 2 conversational events (user + assistant) — dùng khi ĐANG trên loop."""
+    from greennode_agentbase.memory.models import EventCreateRequest, EventPayload
+
+    c = memory_client()
+    for role, msg in (("user", user_text), ("assistant", bot_text)):
+        await c.create_event_async(
+            id=MEMORY_ID,
+            actorId=actor_id,
+            sessionId=session_id,
+            request=EventCreateRequest(
+                payload=EventPayload(type="conversational", role=role, message=msg)
+            ),
+        )
+
+
+def add_chat_events_sync(actor_id: str, session_id: str, user_text: str, bot_text: str) -> None:
+    """Wrapper sync cho handler (thread ngoài loop) — lỗi bị nuốt (history phụ)."""
+    try:
+        run_coro(add_chat_events(actor_id, session_id, user_text, bot_text))
+    except Exception:
+        pass  # history là tiện ích phụ — không làm fail chat
