@@ -138,6 +138,34 @@ Portal: **https://aiplatform.console.vngcloud.vn** → *AI Platform / AgentBase*
     -d '{"message":"I love the beach, I am vegetarian, budget 5M VND, going to Da Nang in June"}'
   ```
 
+## 🤝 A2A protocol (agent-to-agent)
+
+Agent này là một **A2A server** — agent khác discovery và gọi nó theo chuẩn A2A (không cần SDK riêng):
+
+| Endpoint | Method | Nội dung |
+|---|---|---|
+| `/.well-known/agent-card.json` | GET | Agent card: name, skills (`travel-planning`, `personalization`), capabilities (streaming ✔), URL |
+| `/a2a` | POST | JSON-RPC 2.0 `message/send` → trả `Message` chuẩn A2A (contextId + parts text) |
+| `/a2a` | POST | `message/stream` → SSE: status-update working → artifact-update (token) → completed |
+
+- Endpoint A2A **mở** (không qua `X-API-Key`) — đó là điểm thiết kế cho agent discovery.
+- `contextId` của A2A map thẳng vào `thread_id` → cuộc trò chuyện A2A **có memory** như chat thường.
+- Test nhanh:
+  ```bash
+  curl -s $ENDPOINT/.well-known/agent-card.json | jq '.name, .skills[].id'
+  curl -s -X POST $ENDPOINT/a2a -H 'Content-Type: application/json' -d \
+    '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"kind":"message","messageId":"m1","role":"user","parts":[{"kind":"text","text":"Đi Đà Lạt 3 ngày nên ở khu nào?"}]}}}' | jq -r '.result.parts[0].text'
+  ```
+- Unit tests: `tests/test_a2a.py` (card shape, trích text từ parts, envelope JSON-RPC).
+
+## 📊 Observability — LangFuse v4 (OTel SDK)
+
+Mọi turn (chat + A2A + stream) đều được trace bằng **LangFuse SDK v4** (`langfuse>=4.0,<5`):
+
+- Pattern: `_lf_scope()` (`propagate_attributes`) **bao ngoài** turn → trace name / user / session / tags áp cho root **và mọi child observation** (kể cả generation chịu chi phí); `_lf_callback()` (CallbackHandler OTel) tạo **bên trong** scope.
+- Bật chỉ cần 3 env: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`. Thiếu env → tracing tự tắt, agent chạy bình thường (`nullcontext`).
+- Trong UI LangFuse sẽ thấy: model + token usage từng generation, tool calls (`tavily_search`, `recall`), cây LangGraph, session/user/tags để lọc.
+
 ## 🛡️ Production hardening
 
 The sample ships with these guards — flip them on when deploying publicly:

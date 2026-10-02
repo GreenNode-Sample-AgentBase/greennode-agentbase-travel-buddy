@@ -19,7 +19,9 @@ import json
 import logging
 import os
 import threading
+import uuid
 from datetime import datetime
+from contextlib import nullcontext
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -54,6 +56,57 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 AGENT_API_KEY = os.environ.get("AGENT_API_KEY", "").strip()
 # DEBUG_OPS=1: bật op whoami (lộ identity runtime — chỉ dùng lúc setup policy)
 DEBUG_OPS = os.environ.get("DEBUG_OPS", "0").strip() in ("1", "true", "yes")
+
+# A2A (Agent-to-Agent protocol): URL public của runtime này để ghi vào agent card
+A2A_PUBLIC_URL = os.environ.get("A2A_PUBLIC_URL", "").rstrip("/")
+
+# LangFuse tracing (optional): set 3 env này để bật observability cho LangGraph runs
+# LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_HOST
+
+
+def _lf_tracing() -> bool:
+    """LangFuse v4 tracing bật khi đủ 3 env (SDK v4 client tự đọc, auth qua env)."""
+    return bool(
+        os.environ.get("LANGFUSE_PUBLIC_KEY")
+        and os.environ.get("LANGFUSE_SECRET_KEY")
+        and os.environ.get("LANGFUSE_HOST")
+    )
+
+
+def _lf_scope(trace_name: str, user_id: str = "", session_id: str = "", tags: list | None = None):
+    """LangFuse v4: scope `propagate_attributes` — trace_name/user/session/tags áp cho
+    root observation VÀ mọi child (kể cả generation chịu chi phí).
+
+    Phải vào scope TRƯỚC khi tạo CallbackHandler và chạy agent (cùng thread/context).
+    Tracing tắt → nullcontext (chạy bình thường)."""
+    if not _lf_tracing():
+        return nullcontext()
+    try:
+        from langfuse import propagate_attributes
+
+        kwargs: dict = {"trace_name": trace_name, "tags": tags or []}
+        if user_id:
+            kwargs["user_id"] = user_id
+        if session_id:
+            kwargs["session_id"] = session_id
+        return propagate_attributes(**kwargs)
+    except Exception as e:
+        logger.warning("LangFuse scope tắt: %s", e)
+        return nullcontext()
+
+
+def _lf_callback():
+    """LangFuse v4 CallbackHandler (OTel, auth qua env) — tạo BÊN TRONG scope
+    để kế thừa trace context; None = tracing tắt."""
+    if not _lf_tracing():
+        return None
+    try:
+        from langfuse.langchain import CallbackHandler
+
+        return CallbackHandler()
+    except Exception as e:
+        logger.warning("LangFuse callback tắt: %s", e)
+        return None
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -127,11 +180,21 @@ def handler(payload: dict, context: RequestContext) -> dict:
         }
 
     message = payload.get("message") or payload.get("input") or "Hello"
+
+    async def _turn():
+        # LangFuse v4: scope propagate_attributes bọc cả ainvoke (cùng context)
+        with _lf_scope("travel-buddy-chat", user_id, context.session_id, ["chat"]):
+            cb = _lf_callback()
+            return await agent_mod.get_agent().ainvoke(
+                {"messages": [{"role": "user", "content": message}]},
+                config={
+                    "callbacks": [cb] if cb else [],
+                    "configurable": {"thread_id": context.session_id, "actor_id": user_id},
+                },
+            )
+
     try:
-        result = run_coro(agent_mod.get_agent().ainvoke(
-            {"messages": [{"role": "user", "content": message}]},
-            config={"configurable": {"thread_id": context.session_id, "actor_id": user_id}},
-        ))
+        result = run_coro(_turn())
     except Exception as e:  # lỗi MCP/policy/LLM → trả message rõ ràng
         return {"status": "error", "error": f"{type(e).__name__}: {e}", "timestamp": _now()}
 
@@ -335,6 +398,206 @@ async def _chat_stream(request: Request) -> StreamingResponse:
     return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
+# ── A2A (Agent-to-Agent protocol): agent card + JSON-RPC /a2a ──
+# Spec: card tại /.well-known/agent-card.json; POST /a2a nhận JSON-RPC 2.0
+# message/send (trả Message) và message/stream (SSE status-update/artifact-update).
+# Agent chạy trên persistent loop — route async gọi qua asyncio.to_thread(run_coro, ...).
+
+
+def _a2a_card() -> dict:
+    return {
+        "name": "travel-buddy",
+        "description": (
+            "Trợ lý lên kế hoạch du lịch Việt Nam: lịch trình theo ngày, món ăn, "
+            "dự toán chi phí; có memory cá nhân hoá và web search (MCP)."
+        ),
+        "url": f"{A2A_PUBLIC_URL}/a2a" if A2A_PUBLIC_URL else "/a2a",
+        "version": "1.0.0",
+        "protocolVersion": "0.3.0",
+        "capabilities": {"streaming": True, "pushNotifications": False, "stateTransitionHistory": False},
+        "defaultInputModes": ["text/plain"],
+        "defaultOutputModes": ["text/plain"],
+        "skills": [
+            {
+                "id": "travel-planning",
+                "name": "Lập kế hoạch du lịch",
+                "description": "Lên lịch trình theo ngày, gợi ý ăn uống, dự toán ngân sách.",
+                "tags": ["travel", "itinerary", "food", "vietnam"],
+                "examples": ["Lên lịch 3 ngày Đà Lạt cho gia đình 2 người lớn 2 trẻ em"],
+            },
+            {
+                "id": "personalization",
+                "name": "Cá nhân hoá bằng memory",
+                "description": "Gợi ý theo sở thích đã nhớ của người dùng (đồ ăn, phương tiện).",
+                "tags": ["memory", "preference"],
+                "examples": ["Mình thích ăn chay thì đi đâu?"],
+            },
+        ],
+        "preferredTransport": "JSONRPC",
+    }
+
+
+async def _agent_card_route(request: Request) -> JSONResponse:
+    return JSONResponse(_a2a_card())
+
+
+def _a2a_text(params: dict) -> str:
+    msg = (params or {}).get("message") or {}
+    return "".join(
+        str(p.get("text", ""))
+        for p in msg.get("parts", [])
+        if p.get("kind") == "text" or "text" in p
+    ).strip()
+
+
+def _a2a_ctx(body: dict) -> str:
+    msg = (body.get("params") or {}).get("message") or {}
+    return msg.get("contextId") or f"a2a-{uuid.uuid4().hex[:12]}"
+
+
+async def _a2a_turn(user: str, ctx: str, text: str) -> tuple[str, list[str]]:
+    """1 turn A2A (chạy trên persistent loop): trả (reply, memories_used)."""
+    with _lf_scope("travel-buddy-a2a", user, ctx, ["a2a"]):
+        cb = _lf_callback()
+        result = await agent_mod.get_agent().ainvoke(
+            {"messages": [{"role": "user", "content": text}]},
+            config={
+                "callbacks": [cb] if cb else [],
+                "configurable": {"thread_id": ctx, "actor_id": user},
+            },
+        )
+    memories_used: list[str] = []
+    for m in result["messages"]:
+        if type(m).__name__ != "ToolMessage":
+            continue
+        content = str(getattr(m, "content", ""))
+        if content.startswith("Đã nhớ: "):
+            memories_used.append(content[len("Đã nhớ: "):])
+        elif "score:" in content and content.lstrip().startswith("- "):
+            for line in content.splitlines():
+                line = line.strip()
+                if line.startswith("- ") and " (score:" in line:
+                    memories_used.append(line[2:].split(" (score:")[0])
+    reply = str(result["messages"][-1].content or "")
+    if reply:
+        try:
+            await memory_tools.add_chat_events(user, ctx, text, reply)
+        except Exception:
+            logger.warning("lưu history a2a thất bại (bỏ qua)")
+    return reply, memories_used
+
+
+def _a2a_msg_result(rid, ctx: str, text: str) -> dict:
+    return {
+        "jsonrpc": "2.0",
+        "id": rid,
+        "result": {
+            "kind": "message",
+            "messageId": f"msg-{uuid.uuid4()}",
+            "contextId": ctx,
+            "role": "agent",
+            "parts": [{"kind": "text", "text": text}],
+        },
+    }
+
+
+async def _a2a_route(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}
+        )
+    method = body.get("method", "")
+    rid = body.get("id")
+    if method not in ("message/send", "message/stream"):
+        return JSONResponse(
+            {"jsonrpc": "2.0", "id": rid,
+             "error": {"code": -32601, "message": f"Method not found: {method}"}}
+        )
+    text = _a2a_text(body.get("params"))
+    if not text:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "id": rid,
+             "error": {"code": -32602, "message": "params.message.parts không có text"}}
+        )
+    ctx = _a2a_ctx(body)
+
+    if method == "message/send":
+        try:
+            reply, _ = await asyncio.to_thread(run_coro, _a2a_turn("a2a", ctx, text))
+        except Exception as e:
+            logger.exception("a2a message/send error")
+            return JSONResponse(
+                {"jsonrpc": "2.0", "id": rid,
+                 "error": {"code": -32603, "message": f"Agent error: {type(e).__name__}: {e}"}}
+            )
+        return JSONResponse(_a2a_msg_result(rid, ctx, reply))
+
+    # message/stream: SSE — status-update working → artifact-update (token) → completed
+    uv_loop = asyncio.get_running_loop()
+    out_q: asyncio.Queue = asyncio.Queue()
+    tid = f"task-{uuid.uuid4()}"
+
+    async def _produce():
+        reply = ""
+        try:
+            with _lf_scope("travel-buddy-a2a-stream", "a2a", ctx, ["a2a", "stream"]):
+                cb = _lf_callback()
+                async for ev in agent_mod.get_agent().astream_events(
+                    {"messages": [{"role": "user", "content": text}]},
+                    config={
+                        "callbacks": [cb] if cb else [],
+                        "configurable": {"thread_id": ctx, "actor_id": "a2a"},
+                    },
+                ):
+                    if ev["event"] == "on_chat_model_stream":
+                        token = ev["data"].get("chunk").content or ""
+                        if isinstance(token, str) and token:
+                            reply += token
+                            uv_loop.call_soon_threadsafe(out_q.put_nowait, ("tok", token))
+            if reply:
+                try:
+                    await memory_tools.add_chat_events("a2a", ctx, text, reply)
+                except Exception:
+                    pass
+            uv_loop.call_soon_threadsafe(out_q.put_nowait, ("done", reply))
+        except Exception as e:
+            uv_loop.call_soon_threadsafe(out_q.put_nowait, ("err", f"{type(e).__name__}: {e}"))
+
+    threading.Thread(target=lambda: memory_tools.run_coro(_produce()), daemon=True, name=f"a2a-{ctx[:16]}").start()
+
+    def _ev(result: dict) -> str:
+        return f"data: {json.dumps({'jsonrpc': '2.0', 'id': rid, 'result': result}, ensure_ascii=False)}\n\n"
+
+    async def gen():
+        yield _ev({"kind": "status-update", "taskId": tid, "contextId": ctx,
+                   "task": {"taskId": tid, "contextId": ctx,
+                            "status": {"state": "working"}}})
+        reply = ""
+        while True:
+            kind, payload = await out_q.get()
+            if kind == "tok":
+                yield _ev({"kind": "artifact-update", "taskId": tid, "contextId": ctx,
+                           "artifact": {"artifactId": "reply", "append": True,
+                                        "parts": [{"kind": "text", "text": payload}]}})
+                continue
+            if kind == "err":
+                yield _ev({"kind": "status-update", "taskId": tid, "contextId": ctx,
+                           "task": {"taskId": tid, "contextId": ctx,
+                                    "status": {"state": "failed", "message": payload}}})
+                return
+            reply = payload
+            break
+        yield _ev({"kind": "status-update", "taskId": tid, "contextId": ctx,
+                   "task": {"taskId": tid, "contextId": ctx, "status": {"state": "completed"},
+                            "artifacts": [{"artifactId": "reply",
+                                           "parts": [{"kind": "text", "text": reply}]}]}})
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
 # ── /ready: health check sâu (memory + gateway + LLM) cho ops ──
 async def _ready(request: Request) -> JSONResponse:
     checks: dict = {}
@@ -354,6 +617,8 @@ async def _ready(request: Request) -> JSONResponse:
 
 
 app.add_route("/ready", _ready, methods=["GET"])
+app.add_route("/.well-known/agent-card.json", _agent_card_route, methods=["GET"])
+app.add_route("/a2a", _a2a_route, methods=["POST"])
 app.add_route("/api/chat/stream", _chat_stream, methods=["POST"])
 app.add_route("/api/info", _api_info, methods=["GET"])
 app.add_route("/api/memory", _api_memory, methods=["GET"])
