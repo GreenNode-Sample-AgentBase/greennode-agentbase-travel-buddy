@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Use case 2 — Agent PRIVATE (VPC mode) · MCP On-Premise",
+    "subtitle": "Không dùng Tavily / Internet: runtime ở private subnet · egress duy nhất là gateway · route CIDRs qua VPN/Interconnect sang on-premise KH",
+    "viewBox": [1500, 1050]
+  },
+  "components": [
+    { "id": "app", "type": "backend", "label": "Internal app", "sublabel": "trong VPC KH · không Internet", "pos": [90, 140], "size": [160, 64] },
+    { "id": "rt", "type": "frontend", "label": "AgentBase Runtime", "sublabel": "app + LangGraph + AgentBase SDK", "pos": [90, 300], "size": [180, 90], "tag": "VPC MODE · no egress" },
+
+    { "id": "llm", "type": "cloud", "label": "LLM AIP", "sublabel": "qua platform network", "pos": [600, 140], "size": [150, 64] },
+    { "id": "memsvc", "type": "cloud", "label": "Memory + Identity", "sublabel": "managed · platform network", "pos": [600, 300], "size": [160, 70] },
+    { "id": "gateway", "type": "security", "label": "MCP Gateway", "sublabel": "Resource Gateway · policy", "pos": [600, 530], "size": [160, 80], "tag": "egress duy nhất" },
+
+    { "id": "vpngw", "type": "security", "label": "VPN / Interconnect", "sublabel": "Site-to-Site · vNG Cloud", "pos": [950, 760], "size": [160, 64] },
+    { "id": "onprem", "type": "database", "label": "MCP · On-Premise", "sublabel": "ERP · DB · legacy", "pos": [1290, 530], "size": [150, 80], "tag": "private CIDRs" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "VPC của KH (vServer) — Private subnet (không public URL)", "wraps": ["app", "rt"] },
+    { "kind": "region", "label": "GreenNode AI Platform", "wraps": ["llm"] },
+    { "kind": "region", "label": "GreenNode AgentBase — managed services", "wraps": ["memsvc", "gateway"] },
+    { "kind": "security-group", "label": "On-Premise KH — data center (mạng riêng)", "wraps": ["onprem"] }
+  ],
+  "connections": [
+    { "from": "app", "to": "rt", "label": "nội bộ VPC", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "labelAt": [180, 250] },
+    { "from": "rt", "to": "llm", "label": "platform network", "fromSide": "right", "toSide": "bottom" },
+    { "from": "rt", "to": "memsvc", "label": "platform network", "fromSide": "right", "toSide": "left" },
+    { "from": "rt", "to": "gateway", "label": "tools/call · IAM — egress duy nhất", "variant": "emphasis", "fromSide": "bottom", "toSide": "left" },
+    { "from": "gateway", "to": "vpngw", "label": "route CIDRs (VPC route table)", "variant": "security", "fromSide": "bottom", "toSide": "top" },
+    { "from": "vpngw", "to": "onprem", "label": "private link", "variant": "security", "fromSide": "right", "toSide": "bottom" }
+  ],
+  "cards": [
+    { "dot": "rose", "title": "Private end-to-end", "items": [
+      "Runtime VPC mode (networkConfig: vpcId · subnetId · routeCidrs) — không public URL, không egress Internet",
+      "LLM AIP + Memory + Gateway gọi qua platform network — agent vẫn full chức năng, không cần Internet",
+      "Caller là app nội bộ trong VPC — không có đường nào từ Internet vào runtime"
+    ] },
+    { "dot": "amber", "title": "On-prem ↔ VPC của KH nối nhau thế nào?", "items": [
+      "Site-to-Site VPN hoặc vNG Cloud Interconnect (line riêng) giữa data center KH và VPC KH trên GreenNode",
+      "VPC route table thêm route sang CIDR on-premise; gateway/runtime khai báo routeCidrs để đi đường đó",
+      "MCP on-prem chỉ nhận traffic từ VPC — không expose Internet; dữ liệu KH không ra ngoài"
+    ] }
+  ]
+}

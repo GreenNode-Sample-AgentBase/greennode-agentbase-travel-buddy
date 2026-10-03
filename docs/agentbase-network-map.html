@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.11.0">
-  <title>GreenNode AgentBase — Kiến trúc mạng theo layer Diagram</title>
+  <title>AgentBase Runtime — Network Map Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -525,14 +525,14 @@
     <div class="header">
       <div class="header-row">
         <div class="pulse-dot"></div>
-        <h1>GreenNode AgentBase — Kiến trúc mạng theo layer</h1>
+        <h1>AgentBase Runtime — Network Map</h1>
       </div>
-      <p class="subtitle">Public vs Private vs On-Premise: agents, MCP Gateway, Memory, Observability</p>
+      <p class="subtitle">1 runtime block · đặt ở public subnet hay VPC của KH · break ra LLM / Memory / MCP Gateway · 3 nhóm MCP: Internet · Cloud · On-Premise</p>
     </div>
 
     <!-- Main Diagram -->
     <div class="diagram-container">
-      <svg viewBox="0 0 1440 1060" role="img" aria-label="GreenNode AgentBase — Kiến trúc mạng theo layer — Public vs Private vs On-Premise: agents, MCP Gateway, Memory, Observability (architecture diagram)">
+      <svg viewBox="0 0 1500 1120" role="img" aria-label="AgentBase Runtime — Network Map — 1 runtime block · đặt ở public subnet hay VPC của KH · break ra LLM / Memory / MCP Gateway · 3 nhóm MCP: Internet · Cloud · On-Premise (architecture diagram)">
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -556,130 +556,124 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect x="60" y="60" width="1320" height="110" rx="12" class="c-region" stroke-width="1"/>
-        <text x="68" y="78" class="t-cloud" font-size="9" font-weight="600">Internet</text>
+        <rect x="60" y="66" width="1410" height="114" rx="12" class="c-region" stroke-width="1"/>
+        <text x="68" y="84" class="t-cloud" font-size="9" font-weight="600">Internet</text>
 
-        <rect x="60" y="300" width="920" height="384" rx="12" class="c-region" stroke-width="1"/>
-        <text x="68" y="318" class="t-cloud" font-size="9" font-weight="600">Cloud VPC — GreenNode AgentBase (project KH)</text>
+        <rect x="570" y="66" width="210" height="114" rx="12" class="c-region" stroke-width="1"/>
+        <text x="578" y="84" class="t-cloud" font-size="9" font-weight="600">GreenNode AI Platform</text>
 
-        <rect x="60" y="850" width="210" height="114" rx="12" class="c-region" stroke-width="1"/>
-        <text x="68" y="868" class="t-cloud" font-size="9" font-weight="600">Platform managed services</text>
+        <rect x="60" y="270" width="240" height="140" rx="12" class="c-region" stroke-width="1"/>
+        <text x="68" y="288" class="t-cloud" font-size="9" font-weight="600">VPC của KH (vServer) — Public subnet</text>
 
-        <rect x="1120" y="850" width="210" height="114" rx="8" class="c-security-group" stroke-width="1"/>
-        <text x="1128" y="868" class="t-security" font-size="9" font-weight="600">On-Premise KH — mạng riêng (không expose Internet)</text>
+        <rect x="60" y="530" width="240" height="140" rx="12" class="c-region" stroke-width="1"/>
+        <text x="68" y="548" class="t-cloud" font-size="9" font-weight="600">VPC của KH (vServer) — Private subnet</text>
+
+        <rect x="570" y="270" width="220" height="390" rx="12" class="c-region" stroke-width="1"/>
+        <text x="578" y="288" class="t-cloud" font-size="9" font-weight="600">GreenNode AgentBase — managed services</text>
+
+        <rect x="1260" y="530" width="210" height="130" rx="8" class="c-security-group" stroke-width="1"/>
+        <text x="1268" y="548" class="t-security" font-size="9" font-weight="600">On-Premise KH — data center (mạng riêng)</text>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path d="M 155 150 L 155 330" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 630 150 L 631.25 150 Q 632.5 150 632.5 151.25 L 632.5 328.75 Q 632.5 330 633.75 330 L 635 330" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 220 362 L 507 362 Q 515 362 515 370 L 515 624 Q 515 632 523 632 L 810 632" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 880 394 L 880 600" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path d="M 950 632 L 1293.3318967391035 404.41999987579425 Q 1300 400 1299.6802556932091 392.0063923302257 L 1290 150" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 810 632 L 700 632" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 880 664 L 1006.2621835132718 902.9269011097297 Q 1010 910 1017.9991837983961 910.1142740542628 L 1150 912" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path d="M 635 394 L 520.5 394 Q 512.5 394 512.5 402 L 512.5 592 Q 512.5 600 504.5 600 L 390 600" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path d="M 155 394 L 157.5 394 Q 160 394 160 396.5 L 160 877.5 Q 160 880 162.5 880 L 165 880" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path d="M 330 362 L 220 362" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path d="M 165 160 L 168.75 160 Q 172.5 160 172.5 163.75 L 172.5 296.25 Q 172.5 300 176.25 300 L 180 300" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 270 345 L 464.5 345 Q 472.5 345 472.5 337 L 472.5 168 Q 472.5 160 480.5 160 L 675 160" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path d="M 270 345 L 430 345 Q 435 345 435 340 L 435 340 Q 435 335 440 335 L 600 335" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path d="M 180 390 L 382 390 Q 390 390 390 398 L 390 592 Q 390 600 398 600 L 600 600" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 270 605 L 432.5 605 Q 435 605 435 602.5 L 435 602.5 Q 435 600 437.5 600 L 600 600" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path d="M 680 560 L 1014.5 560 Q 1022.5 560 1022.5 552 L 1022.5 168 Q 1022.5 160 1030.5 160 L 1365 160" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path d="M 760 600 L 1017 600 Q 1025 600 1025 592 L 1025 343 Q 1025 335 1033 335 L 1290 335" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path d="M 680 640 L 847 640 Q 855 640 855 648 L 855 822 Q 855 830 863 830 L 1030 830" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path d="M 1110 862 L 1229.5 862 Q 1237.5 862 1237.5 854 L 1237.5 648 Q 1237.5 640 1245.5 640 L 1365 640" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
 
         <!-- Components -->
-        <rect x="90" y="90" width="130" height="60" rx="6" class="c-mask"/>
-        <rect x="90" y="90" width="130" height="60" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="155" y="118" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Users</text>
-        <text x="155" y="134" class="t-muted" font-size="9" text-anchor="middle">browser · curl · A2A client</text>
+        <rect x="90" y="96" width="150" height="64" rx="6" class="c-mask"/>
+        <rect x="90" y="96" width="150" height="64" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="165" y="126" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Callers</text>
+        <text x="165" y="142" class="t-muted" font-size="9" text-anchor="middle">browser · webhook · agent A2A</text>
 
-        <rect x="570" y="90" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="570" y="90" width="120" height="60" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="630" y="118" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Zalo Cloud</text>
-        <text x="630" y="134" class="t-muted" font-size="9" text-anchor="middle">OA webhook events</text>
+        <rect x="1290" y="96" width="150" height="64" rx="6" class="c-mask"/>
+        <rect x="1290" y="96" width="150" height="64" rx="6" class="c-external" stroke-width="1.5"/>
+        <text x="1365" y="126" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MCP · Internet</text>
+        <text x="1365" y="142" class="t-muted" font-size="9" text-anchor="middle">tavily (SaaS) — APIKEY</text>
 
-        <rect x="1230" y="90" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="1230" y="90" width="120" height="60" rx="6" class="c-external" stroke-width="1.5"/>
-        <text x="1290" y="118" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Tavily</text>
-        <text x="1290" y="134" class="t-muted" font-size="9" text-anchor="middle">web search SaaS</text>
+        <rect x="90" y="300" width="180" height="90" rx="6" class="c-mask"/>
+        <rect x="90" y="300" width="180" height="90" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="180" y="343" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">AgentBase Runtime</text>
+        <text x="180" y="359" class="t-muted" font-size="9" text-anchor="middle">app + LangGraph + AgentBase SDK</text>
+        <text x="180" y="382" class="t-frontend" font-size="7" text-anchor="middle">PUBLIC mode</text>
 
-        <rect x="90" y="330" width="130" height="64" rx="6" class="c-mask"/>
-        <rect x="90" y="330" width="130" height="64" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="155" y="360" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">travel-buddy</text>
-        <text x="155" y="376" class="t-muted" font-size="9" text-anchor="middle">agent · public URL</text>
+        <rect x="90" y="560" width="180" height="90" rx="6" class="c-mask"/>
+        <rect x="90" y="560" width="180" height="90" rx="6" class="c-frontend" stroke-width="1.5"/>
+        <text x="180" y="603" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">AgentBase Runtime</text>
+        <text x="180" y="619" class="t-muted" font-size="9" text-anchor="middle">app + LangGraph + AgentBase SDK</text>
+        <text x="180" y="642" class="t-frontend" font-size="7" text-anchor="middle">VPC MODE · no egress</text>
 
-        <rect x="330" y="330" width="120" height="64" rx="6" class="c-mask"/>
-        <rect x="330" y="330" width="120" height="64" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="390" y="360" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">agent-c-multi</text>
-        <text x="390" y="376" class="t-muted" font-size="9" text-anchor="middle">agent · A2A hub</text>
+        <rect x="600" y="96" width="150" height="64" rx="6" class="c-mask"/>
+        <rect x="600" y="96" width="150" height="64" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="675" y="126" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LLM AIP</text>
+        <text x="675" y="142" class="t-muted" font-size="9" text-anchor="middle">GLM · OpenAI-compat · API key</text>
 
-        <rect x="570" y="330" width="130" height="64" rx="6" class="c-mask"/>
-        <rect x="570" y="330" width="130" height="64" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="635" y="360" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">zalo-bot</text>
-        <text x="635" y="376" class="t-muted" font-size="9" text-anchor="middle">restaurant · Zalo webhook</text>
+        <rect x="600" y="300" width="160" height="70" rx="6" class="c-mask"/>
+        <rect x="600" y="300" width="160" height="70" rx="6" class="c-cloud" stroke-width="1.5"/>
+        <text x="680" y="333" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Memory + Identity</text>
+        <text x="680" y="349" class="t-muted" font-size="9" text-anchor="middle">managed services · SDK</text>
 
-        <rect x="810" y="330" width="140" height="64" rx="6" class="c-mask"/>
-        <rect x="810" y="330" width="140" height="64" rx="6" class="c-frontend" stroke-width="1.5"/>
-        <text x="880" y="360" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">agent-internal</text>
-        <text x="880" y="376" class="t-muted" font-size="9" text-anchor="middle">runtime VPC mode · không public URL</text>
-        <text x="880" y="386" class="t-frontend" font-size="7" text-anchor="middle">NO INTERNET</text>
+        <rect x="600" y="560" width="160" height="80" rx="6" class="c-mask"/>
+        <rect x="600" y="560" width="160" height="80" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="680" y="598" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MCP Gateway</text>
+        <text x="680" y="614" class="t-muted" font-size="9" text-anchor="middle">Resource Gateway · policy</text>
+        <text x="680" y="632" class="t-security" font-size="7" text-anchor="middle">egress point</text>
 
-        <rect x="330" y="600" width="120" height="60" rx="6" class="c-mask"/>
-        <rect x="330" y="600" width="120" height="60" rx="6" class="c-cloud" stroke-width="1.5"/>
-        <text x="390" y="628" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LangFuse</text>
-        <text x="390" y="644" class="t-muted" font-size="9" text-anchor="middle">observability · OTel</text>
+        <rect x="1290" y="300" width="150" height="70" rx="6" class="c-mask"/>
+        <rect x="1290" y="300" width="150" height="70" rx="6" class="c-backend" stroke-width="1.5"/>
+        <text x="1365" y="333" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MCP · Cloud</text>
+        <text x="1365" y="349" class="t-muted" font-size="9" text-anchor="middle">stock-mcp runtime · API key</text>
 
-        <rect x="570" y="600" width="130" height="64" rx="6" class="c-mask"/>
-        <rect x="570" y="600" width="130" height="64" rx="6" class="c-backend" stroke-width="1.5"/>
-        <text x="635" y="630" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">stock-mcp</text>
-        <text x="635" y="646" class="t-muted" font-size="9" text-anchor="middle">MCP runtime · API key</text>
+        <rect x="950" y="830" width="160" height="64" rx="6" class="c-mask"/>
+        <rect x="950" y="830" width="160" height="64" rx="6" class="c-security" stroke-width="1.5"/>
+        <text x="1030" y="860" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">VPN / Interconnect</text>
+        <text x="1030" y="876" class="t-muted" font-size="9" text-anchor="middle">Site-to-Site · vNG Cloud</text>
 
-        <rect x="810" y="600" width="140" height="64" rx="6" class="c-mask"/>
-        <rect x="810" y="600" width="140" height="64" rx="6" class="c-security" stroke-width="1.5"/>
-        <text x="880" y="630" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MCP Gateway</text>
-        <text x="880" y="646" class="t-muted" font-size="9" text-anchor="middle">sample-mcp-gw</text>
-        <text x="880" y="656" class="t-security" font-size="7" text-anchor="middle">policy group</text>
-
-        <rect x="90" y="880" width="150" height="64" rx="6" class="c-mask"/>
-        <rect x="90" y="880" width="150" height="64" rx="6" class="c-cloud" stroke-width="1.5"/>
-        <text x="165" y="910" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Memory + Identity</text>
-        <text x="165" y="926" class="t-muted" font-size="9" text-anchor="middle">managed services · SDK</text>
-
-        <rect x="1150" y="880" width="150" height="64" rx="6" class="c-mask"/>
-        <rect x="1150" y="880" width="150" height="64" rx="6" class="c-database" stroke-width="1.5"/>
-        <text x="1225" y="910" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MCP On-Premise</text>
-        <text x="1225" y="926" class="t-muted" font-size="9" text-anchor="middle">ERP · DB · legacy</text>
-        <text x="1225" y="936" class="t-database" font-size="7" text-anchor="middle">VPC routes only</text>
+        <rect x="1290" y="560" width="150" height="80" rx="6" class="c-mask"/>
+        <rect x="1290" y="560" width="150" height="80" rx="6" class="c-database" stroke-width="1.5"/>
+        <text x="1365" y="598" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MCP · On-Premise</text>
+        <text x="1365" y="614" class="t-muted" font-size="9" text-anchor="middle">ERP · DB · legacy</text>
+        <text x="1365" y="632" class="t-database" font-size="7" text-anchor="middle">private CIDRs</text>
 
         <!-- Connection labels -->
-        <rect x="106.80000000000001" y="230" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
-        <text x="155" y="240" class="t-backend" font-size="8" text-anchor="middle">HTTPS · public URL</text>
-        <rect x="589.1" y="220" width="86.8" height="14" rx="3" class="c-mask"/>
-        <text x="632.5" y="230" class="t-muted" font-size="8" text-anchor="middle">webhook + secret</text>
-        <rect x="462" y="477" width="106" height="14" rx="3" class="c-mask"/>
-        <text x="515" y="487" class="t-backend" font-size="8" text-anchor="middle">MCP tool calls · IAM</text>
-        <rect x="810.2" y="398" width="139.6" height="14" rx="3" class="c-mask"/>
-        <text x="880" y="408" class="t-backend" font-size="8" text-anchor="middle">egress duy nhất (trong VPC)</text>
-        <rect x="1232.4" y="255" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
-        <text x="1295" y="265" class="t-muted" font-size="8" text-anchor="middle">egress Internet · APIKEY</text>
-        <rect x="704.4" y="612" width="101.2" height="14" rx="3" class="c-mask"/>
-        <text x="755" y="622" class="t-muted" font-size="8" text-anchor="middle">API key · trong VPC</text>
-        <rect x="1027" y="891" width="106" height="14" rx="3" class="c-mask"/>
-        <text x="1080" y="901" class="t-security" font-size="8" text-anchor="middle">VPC routes · private</text>
-        <rect x="483.5" y="477" width="58" height="14" rx="3" class="c-mask"/>
-        <text x="512.5" y="487" class="t-messagebus" font-size="8" text-anchor="middle">OTel trace</text>
-        <rect x="99.80000000000001" y="617" width="120.39999999999999" height="14" rx="3" class="c-mask"/>
-        <text x="160" y="627" class="t-muted" font-size="8" text-anchor="middle">SDK · memory + identity</text>
-        <rect x="260" y="342" width="30" height="14" rx="3" class="c-mask"/>
-        <text x="275" y="352" class="t-messagebus" font-size="8" text-anchor="middle">A2A</text>
+        <rect x="126.80000000000001" y="222" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
+        <text x="175" y="232" class="t-backend" font-size="8" text-anchor="middle">HTTPS · public URL</text>
+        <rect x="405.1" y="232.5" width="134.8" height="14" rx="3" class="c-mask"/>
+        <text x="472.5" y="242.5" class="t-muted" font-size="8" text-anchor="middle">chat completions · API key</text>
+        <rect x="379.6" y="320" width="110.8" height="14" rx="3" class="c-mask"/>
+        <text x="435" y="330" class="t-muted" font-size="8" text-anchor="middle">SDK · history + facts</text>
+        <rect x="346.6" y="475" width="86.8" height="14" rx="3" class="c-mask"/>
+        <text x="390" y="485" class="t-backend" font-size="8" text-anchor="middle">tools/call · IAM</text>
+        <rect x="394" y="582.5" width="82" height="14" rx="3" class="c-mask"/>
+        <text x="435" y="592.5" class="t-backend" font-size="8" text-anchor="middle">egress duy nhất</text>
+        <rect x="959.9" y="340" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
+        <text x="1022.5" y="350" class="t-muted" font-size="8" text-anchor="middle">egress Internet · APIKEY</text>
+        <rect x="974.4" y="447.5" width="101.2" height="14" rx="3" class="c-mask"/>
+        <text x="1025" y="457.5" class="t-muted" font-size="8" text-anchor="middle">MCP cloud · API key</text>
+        <rect x="780.4" y="715" width="149.2" height="14" rx="3" class="c-mask"/>
+        <text x="855" y="725" class="t-security" font-size="8" text-anchor="middle">route CIDRs (VPC route table)</text>
+        <rect x="1203.7" y="731" width="67.6" height="14" rx="3" class="c-mask"/>
+        <text x="1237.5" y="741" class="t-security" font-size="8" text-anchor="middle">private link</text>
 
         <!-- Legend -->
-        <text x="40" y="1031" class="t-primary" font-size="9" font-weight="600">Legend</text>
-        <rect x="40" y="1036" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
-        <text x="60" y="1044" class="t-muted" font-size="8">External</text>
-        <rect x="138" y="1036" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-        <text x="158" y="1044" class="t-muted" font-size="8">Frontend</text>
-        <rect x="236" y="1036" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
-        <text x="256" y="1044" class="t-muted" font-size="8">Cloud</text>
-        <rect x="319" y="1036" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-        <text x="339" y="1044" class="t-muted" font-size="8">Backend</text>
-        <rect x="412" y="1036" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-        <text x="432" y="1044" class="t-muted" font-size="8">Security</text>
-        <rect x="510" y="1036" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-        <text x="530" y="1044" class="t-muted" font-size="8">Database</text>
+        <text x="40" y="1091" class="t-primary" font-size="9" font-weight="600">Legend</text>
+        <rect x="40" y="1096" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
+        <text x="60" y="1104" class="t-muted" font-size="8">External</text>
+        <rect x="138" y="1096" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+        <text x="158" y="1104" class="t-muted" font-size="8">Frontend</text>
+        <rect x="236" y="1096" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
+        <text x="256" y="1104" class="t-muted" font-size="8">Cloud</text>
+        <rect x="319" y="1096" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+        <text x="339" y="1104" class="t-muted" font-size="8">Security</text>
+        <rect x="417" y="1096" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+        <text x="437" y="1104" class="t-muted" font-size="8">Backend</text>
+        <rect x="510" y="1096" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+        <text x="530" y="1104" class="t-muted" font-size="8">Database</text>
       </svg>
     </div>
 
@@ -688,36 +682,36 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>Đường PUBLIC</h3>
+          <h3>Runtime đặt ở đâu?</h3>
         </div>
         <ul>
-          <li>&bull; Agent public URL (HTTPS) — IAM / API-key tùy cấu hình từng endpoint</li>
-          <li>&bull; Gateway egress Internet: APIKEY / OAUTH 2LO — secret lấy từ Identity</li>
-          <li>&bull; Policy group chặn tool theo principal — agent nào được gọi tool gì</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot rose"></div>
-          <h3>Đường PRIVATE</h3>
-        </div>
-        <ul>
-          <li>&bull; Agent VPC mode: không public URL, không egress Internet — egress duy nhất là gateway trong VPC</li>
-          <li>&bull; Gateway route CIDRs → mạng on-premise KH: MCP nội bộ không bao giờ ra Internet</li>
-          <li>&bull; Cấu hình: runtime networkConfig (mode·vpcId·subnetId·routeCidrs) + gateway routes; demo live đang chạy public mode</li>
+          <li>&bull; PUBLIC mode: public URL qua platform endpoint — subnet public của VPC KH</li>
+          <li>&bull; VPC mode: networkConfig (vpcId · subnetId · routeCidrs) — không public URL, không egress Internet</li>
+          <li>&bull; Cùng 1 block code — chỉ khác networkConfig khi deploy</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot amber"></div>
-          <h3>Managed + Observability</h3>
+          <h3>Runtime break ra đâu?</h3>
         </div>
         <ul>
-          <li>&bull; Memory (history + long-term facts) &amp; Identity (outbound auth) là dịch vụ managed — agent gọi qua SDK</li>
-          <li>&bull; LangFuse OTel: trace mọi agent — chat, A2A, MCP tool — đủ model + token usage</li>
-          <li>&bull; A2A: agent ↔ agent qua JSON-RPC /a2a (agent-c-multi ↔ travel-buddy / zalo-bot)</li>
+          <li>&bull; LLM AIP: HTTPS + API key (OpenAI-compatible) — GreenNode AI Platform</li>
+          <li>&bull; Memory + Identity: gọi qua AgentBase SDK — managed, tự động credential trong runtime</li>
+          <li>&bull; MCP Gateway: tools/call với IAM — gateway là điểm egress duy nhất của agent</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>MCP Gateway → MCP ở đâu?</h3>
+        </div>
+        <ul>
+          <li>&bull; Internet: tavily SaaS — APIKEY/OAUTH outbound (secret lấy từ Identity)</li>
+          <li>&bull; Cloud: stock-mcp runtime trên platform — API key inbound, traffic trong VPC</li>
+          <li>&bull; On-premise: route CIDRs qua Site-to-Site VPN / vNG Cloud Interconnect — MCP nội bộ KHÔNG expose Internet</li>
         </ul>
       </div>
     </div>

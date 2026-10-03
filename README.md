@@ -44,60 +44,79 @@ flowchart LR
 - **MCP Gateway** — `sample-mcp-gw`, **IAM** inbound, `tavily` connector (APIKEY outbound). **Policy Group** `sample-gw-policy`: only travel-buddy may call the 5 Tavily actions — everything else is **denied by default** (verified: unknown token → "Request denied by policy.").
 - **Frontend** — `src/frontend`: vanilla SPA, served by the backend at `GET /` (same-origin, no CORS).
 
-## 🌐 Kiến trúc mạng theo layer — Public · Private · On-Premise
+## 🌐 Network map — AgentBase Runtime & MCP topology
 
-Toàn bộ mô hình kết nối từng thành phần (Memory, MCP Gateway, agents, on-prem) qua các lớp mạng — bản đẹp có theme toggle + export PNG/SVG: **[docs/network-layers.html](docs/network-layers.html)** · bản use-case flows: **[docs/usecase-flows.html](docs/usecase-flows.html)**
+Một block **AgentBase Runtime** (container: app + LangGraph + AgentBase SDK) — đặt ở **public subnet** hay **private subnet của VPC KH** chỉ khác `networkConfig`; từ runtime break ra **LLM AIP**, **Memory + Identity**, **MCP Gateway**; từ gateway tỏa ra 3 nhóm MCP: **Internet · Cloud · On-Premise**. Bản vẽ chuẩn AWS-style (theme toggle + export PNG/SVG):
+
+- **[docs/agentbase-network-map.html](docs/agentbase-network-map.html)** — bản đồ tổng: runtime ở 2 subnet + break-out + 3 nhóm MCP
+- **[docs/usecase-public-cloud.html](docs/usecase-public-cloud.html)** — UC1: agent PUBLIC mode, tools = tavily (Internet) + stock-mcp (Cloud)
+- **[docs/usecase-private-onprem.html](docs/usecase-private-onprem.html)** — UC2: agent PRIVATE (VPC mode), **không dùng Tavily/Internet**, MCP on-premise qua VPN/Interconnect
 
 ```mermaid
 flowchart TB
     subgraph INTERNET["🌐 Internet"]
-        USERS(["Users<br/>browser · curl · A2A client"])
-        ZALO(["Zalo Cloud<br/>webhook"])
-        TAVILY(["Tavily<br/>web search SaaS"])
+        CALLERS(["Callers<br/>browser · webhook · agent A2A"])
+        TAVILY(["MCP · Internet<br/>tavily SaaS — APIKEY"])
     end
 
-    subgraph VPC["☁️ Cloud VPC — GreenNode AgentBase (project KH)"]
-        TRAVEL["🤖 travel-buddy<br/>public URL"]
-        AGENTC["🤖 agent-c-multi<br/>A2A hub"]
-        ZALOBOT["🤖 zalo-bot<br/>webhook + public"]
-        PRIV["🔒 agent-internal<br/>VPC mode · NO egress"]
-        GW["🛡️ MCP Gateway<br/>policy + outbound auth"]
-        STOCK["🔧 stock-mcp<br/>MCP runtime · API key"]
-        LF["📊 LangFuse<br/>OTel observability"]
+    subgraph AIP["🧠 GreenNode AI Platform"]
+        LLM["LLM AIP<br/>GLM · OpenAI-compat · API key"]
     end
 
-    subgraph MANAGED["🧩 Platform managed services"]
-        MEM["Memory + Identity<br/>agents gọi qua SDK"]
+    subgraph PUBSUB["🌐 VPC của KH (vServer) — Public subnet"]
+        RT["🤖 AgentBase Runtime<br/>app + LangGraph + AgentBase SDK<br/><b>PUBLIC mode</b>"]
     end
 
-    subgraph ONPREM["🏢 On-Premise KH — mạng riêng, không expose Internet"]
-        OPMCP[("MCP On-Premise<br/>ERP · DB · legacy")]
+    subgraph PRIVSUB["🔒 VPC của KH (vServer) — Private subnet"]
+        RTVPC["🤖 AgentBase Runtime<br/>app + LangGraph + AgentBase SDK<br/><b>VPC MODE · no egress</b>"]
     end
 
-    USERS -->|"HTTPS · public URL"| TRAVEL
-    ZALO -->|"webhook + secret"| ZALOBOT
-    TRAVEL -->|"MCP tool calls · IAM"| GW
-    PRIV -.->|"egress duy nhất (trong VPC)"| GW
+    subgraph MANAGED["🧩 GreenNode AgentBase — managed services"]
+        MEM["Memory + Identity<br/>gọi qua SDK"]
+        GW["🛡️ MCP Gateway<br/>policy + outbound auth<br/><b>egress point</b>"]
+    end
+
+    subgraph ONPREM["🏢 On-Premise KH — data center (mạng riêng)"]
+        OPMCP[("MCP On-Premise<br/>ERP · DB · legacy<br/>private CIDRs")]
+    end
+
+    VPN["🔐 VPN / Interconnect<br/>Site-to-Site · vNG Cloud"]
+
+    CALLERS -->|"HTTPS · public URL"| RT
+    RT -->|"chat completions · API key"| LLM
+    RT -->|"SDK · history + facts"| MEM
+    RT -->|"tools/call · IAM"| GW
+    RTVPC -.->|"egress duy nhất"| GW
     GW -->|"egress Internet · APIKEY"| TAVILY
-    GW -->|"API key · trong VPC"| STOCK
-    GW ==>|"VPC routes · private"| OPMCP
-    ZALOBOT -.->|"OTel trace"| LF
-    TRAVEL -->|"SDK · memory + identity"| MEM
-    AGENTC <-.->|"A2A"| TRAVEL
+    GW -->|"API key"| STOCK["MCP · Cloud<br/>stock-mcp runtime"]
+    GW ==>|"route CIDRs (VPC route table)"| VPN
+    VPN ==>|"private link"| OPMCP
 ```
 
-**Luồng chính:** user → agent (public URL) → MCP Gateway (IAM + policy) → tool. Gateway là **điểm egress duy nhất**: ra Internet (APIKEY/OAUTH outbound lấy từ Identity) hoặc vào mạng riêng on-premise (VPC routes). Agent VPC mode không có public URL và không tự egress — mọi thứ đi qua gateway trong VPC.
+**Runtime break ra đâu:** LLM AIP (HTTPS + API key) · Memory + Identity (SDK, credential tự inject trong runtime) · MCP Gateway (tools/call IAM). **Gateway là điểm egress duy nhất của agent** — chính sách + outbound auth đều tập trung ở đây, agent không tự egress.
 
-### Use case: đi public vs đi private
+### Use case 1 — PUBLIC (demo live)
 
-| Use case | Agent | Endpoint | Egress của agent | Đường tới tool |
-|---|---|---|---|---|
-| **Public demo** | travel-buddy · zalo-bot · agent-c-multi | public URL (HTTPS), IAM/API-key tùy cấu hình | Internet **qua gateway** (agent không egress trực tiếp) | gateway → Internet (tavily, APIKEY) hoặc trong VPC (stock-mcp, API key) |
-| **Private agent** | `agent-internal` — runtime **VPC mode** (`networkConfig`: `mode`/`vpcId`/`subnetId`/`routeCidrs`) | **không có** public URL — chỉ nhận traffic nội bộ VPC | **không Internet** — egress duy nhất là gateway | gateway → MCP trong VPC hoặc route CIDRs sang on-prem |
-| **MCP on-premise** | mọi agent (qua gateway) | MCP KHÔNG expose Internet | — | gateway **route CIDRs** sang mạng on-premise KH (site-to-site trong VPC) |
-| **A2A** | mọi agent | `/a2a` (public URL hoặc internal) | theo mode của agent | JSON-RPC `message/send` agent ↔ agent, không cần SDK chung |
+Agent public URL → runtime ở public subnet → LLM + Memory + Gateway → tools: **tavily** (Internet, APIKEY outbound) + **stock-mcp** (Cloud, API key inbound). Chi tiết: [docs/usecase-public-cloud.html](docs/usecase-public-cloud.html)
 
-> **Ghi chú minh bạch:** travel-buddy / agent-c-multi / zalo-bot / stock-mcp / LangFuse là **bản demo đang chạy live** (public mode). `agent-internal` (VPC mode) và **MCP on-premise** là 2 pattern private của platform — cấu hình qua runtime `networkConfig` và gateway VPC routes — chưa kết nối mạng on-premise thật trong demo này.
+### Use case 2 — PRIVATE, không dùng Tavily (VPC cloud ↔ on-premise)
+
+Runtime **VPC mode** (`networkConfig`: `mode`/`vpcId`/`subnetId`/`routeCidrs`) ở private subnet — **không public URL, không egress Internet**. LLM/Memory/Gateway gọi qua **platform network** nên agent vẫn full chức năng. Tool MCP on-premise:
+
+1. **Kết nối mạng**: Site-to-Site VPN hoặc **vNG Cloud Interconnect** (line riêng) giữa data center KH ↔ VPC KH trên GreenNode (vServer).
+2. **Route**: thêm route sang CIDR on-premise trong VPC route table; gateway/runtime khai báo `routeCidrs` để đi đường đó.
+3. **Kết quả**: MCP on-prem chỉ nhận traffic từ VPC — **không bao giờ expose Internet**, dữ liệu KH không ra ngoài.
+
+Chi tiết: [docs/usecase-private-onprem.html](docs/usecase-private-onprem.html)
+
+| | UC1 · Public | UC2 · Private |
+|---|---|---|
+| Runtime | public subnet, public URL | private subnet, `networkConfig` VPC mode |
+| Caller | bất kỳ (Internet) | app nội bộ VPC |
+| Egress của agent | qua gateway (Internet + cloud) | **duy nhất gateway** — không Internet |
+| Tools | tavily (Internet) · stock-mcp (Cloud) | MCP on-premise qua VPN/Interconnect + route CIDRs |
+
+> **Ghi chú minh bạch:** demo live đang chạy UC1 (public mode) với tavily + stock-mcp + LangFuse. UC2 (VPC mode + on-prem MCP qua VPN/Interconnect) là pattern platform hỗ trợ — cần `vpcId`/`subnetId` thật từ vServer và line kết nối tới data center KH.
 
 ## 📁 Layout
 
