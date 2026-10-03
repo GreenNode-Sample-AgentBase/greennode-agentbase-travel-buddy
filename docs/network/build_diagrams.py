@@ -139,15 +139,37 @@ def use(sid, x, y, size):
     return f'<use href="#{sid}" xlink:href="#{sid}" x="{x}" y="{y}" width="{size}" height="{size}"/>'
 
 
+PAD = 5            # tile icon nở thêm PAD mỗi phía quanh khung 48×48 (tâm giữ nguyên → bố cục không đổi)
+NODE_BOXES: list[tuple[float, float]] = []   # góc trên-trái các icon đã vẽ → arrow() lùi đầu mút ra mép tile
+
+
 def icon(x, y, glyph, color, badge=None):
-    """Tile trắng viền xám (style GreenNode) + icon màu; badge = icon nhỏ góc phải-dưới (nơi MCP chạy)."""
-    out = (f'<rect x="{x+0.75}" y="{y+0.75}" width="46.5" height="46.5" rx="9" fill="#FFFFFF" '
-           f'stroke="#CFD6DD" stroke-width="1.5"/>')
-    out += use(glyph, x + 8, y + 8, 32) if glyph in SYMBOLS else GLYPH[glyph](x, y).replace("#FFFFFF", color)
+    """Tile trắng viền xám (style GreenNode) + icon màu; badge = icon nhỏ góc phải-trên (nơi MCP chạy)."""
+    NODE_BOXES.append((x, y))
+    S = 48 + 2 * PAD
+    out = (f'<rect x="{x - PAD + 0.75}" y="{y - PAD + 0.75}" width="{S - 1.5}" height="{S - 1.5}" rx="11" '
+           f'fill="#FFFFFF" stroke="#CFD6DD" stroke-width="1.5"/>')
+    if glyph in SYMBOLS:
+        out += use(glyph, x + 2, y + 2, 44)
+    else:  # glyph tự vẽ (khung 48) → phóng to quanh tâm
+        k = 44 / 32
+        out += (f'<g transform="translate({x + 24} {y + 24}) scale({k:.3f}) translate({-x - 24} {-y - 24})">'
+                + GLYPH[glyph](x, y).replace("#FFFFFF", color) + '</g>')
     if badge:
-        out += (f'<circle cx="{x+46}" cy="{y+46}" r="12" fill="#FFFFFF" stroke="#CFD6DD" stroke-width="1.2"/>'
-                + use(badge, x + 37, y + 37, 18))
+        out += (f'<circle cx="{x+49}" cy="{y-1}" r="13" fill="#FFFFFF" stroke="#CFD6DD" stroke-width="1.2"/>'
+                + use(badge, x + 39, y - 11, 20))
     return out
+
+
+def _off_tile(pt, prev):
+    """Nếu đầu mút nằm trên mép khung 48 của 1 icon → đẩy ra PAD theo hướng đi vào."""
+    px, py = pt
+    for bx, by in NODE_BOXES:
+        if px in (bx, bx + 48) and by <= py <= by + 48 and prev[1] == py:
+            return (px - PAD if px == bx else px + PAD, py)
+        if py in (by, by + 48) and bx <= px <= bx + 48 and prev[0] == px:
+            return (px, py - PAD if py == by else py + PAD)
+    return pt
 
 
 def lbl_below(x, y, name, sub=(), color=INK):
@@ -227,6 +249,10 @@ def arrow(pts, kind="req", label=None, at=None, anchor="middle", both=False):
         "dx": (C["compute"], 3.2, "", "a-org"),
         "vpn": (C["sec"], 2, "7 4", "a-red"),
     }[kind]
+    pts = list(pts)
+    if len(pts) >= 2:
+        pts[-1] = _off_tile(pts[-1], pts[-2])
+        pts[0] = _off_tile(pts[0], pts[1])
     p = " ".join(f"{a},{b}" for a, b in pts)
     out = (f'<polyline points="{p}" fill="none" stroke="{stroke}" stroke-width="{width}" '
            f'stroke-linejoin="round"' + (f' stroke-dasharray="{dash}"' if dash else '')
@@ -282,6 +308,7 @@ def defs():
 
 
 def svg(w, h, body, label):
+    NODE_BOXES.clear()   # registry chỉ có hiệu lực trong 1 diagram
     return (f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
             f'font-family="{FONT}" role="img" aria-label="{esc(label)}">'
             f'<rect width="{w}" height="{h}" fill="#FFFFFF"/>{defs()}{"".join(body)}</svg>')
@@ -313,7 +340,7 @@ def connector(x, y, name, url, auth, w=320):
     """1 MCP Connector trong gateway: MCP endpoint URL + Outbound Auth."""
     out = (f'<rect x="{x}" y="{y}" width="{w}" height="56" rx="4" fill="#FFFFFF" '
            f'stroke="#9AA5B1" stroke-width="1.2"/>')
-    out += use("mcp", x + 12, y + 14, 28)
+    out += use("mcp", x + 9, y + 10, 36)
     out += (f'<text x="{x+52}" y="{y+18}" font-size="12" font-weight="700" fill="{INK}" '
             f'font-family="Menlo,Consolas,monospace">{esc(name)}</text>')
     out += text(x + 52, y + 33, "URL: " + url, 10.5, 400, SLATE)
@@ -378,10 +405,10 @@ def gateway_compact(s, x, y, title, names, network):
     s.append(text(x + 34, y + 18, title, 12.5, 700, C["net"]))
     s.append(text(x + w - 10, y + 18, "MCP Connectors", 11, 700, INK, "end"))
     for ty, sid, label in [(y + 40, "inbound-auth", "Inbound Auth"), (y + 104, "policy", "Policy Group")]:
-        s.append(f'<rect x="{x+14}" y="{ty}" width="36" height="36" rx="7" fill="#FFFFFF" stroke="#CFD6DD" stroke-width="1.2"/>'
-                 + use(sid, x + 18, ty + 4, 28))
+        s.append(f'<rect x="{x+12}" y="{ty-2}" width="40" height="40" rx="8" fill="#FFFFFF" stroke="#CFD6DD" stroke-width="1.2"/>'
+                 + use(sid, x + 15, ty + 1, 34))
         s.append(text(x + 58, ty + 23, label, 11.5, 700, INK))
-    s.append(arrow([(x + 32, y + 76), (x + 32, y + 104)], "req"))
+    s.append(arrow([(x + 32, y + 78), (x + 32, y + 102)], "req"))
     s.append(text(x + 12, y + h - 8, network, 10.5, 600, C["net"]))
     mids = {}
     for i, n in enumerate(names):
@@ -391,8 +418,8 @@ def gateway_compact(s, x, y, title, names, network):
         mids[n] = cy + 28
     bus = x + 155
     # policy → bus: đi từ đáy ô Policy để không cắt chữ "Policy Group"
-    s.append(f'<polyline points="{x+32},{y+140} {x+32},{y+154} {bus},{y+154}" fill="none" stroke="{INK}" stroke-width="1.6"/>')
-    lo, hi = min(list(mids.values()) + [y + 154]), max(list(mids.values()) + [y + 154])
+    s.append(f'<polyline points="{x+32},{y+142} {x+32},{y+156} {bus},{y+156}" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    lo, hi = min(list(mids.values()) + [y + 156]), max(list(mids.values()) + [y + 156])
     s.append(f'<polyline points="{bus},{lo} {bus},{hi}" fill="none" stroke="{INK}" stroke-width="1.6"/>')
     for m in mids.values():
         s.append(arrow([(bus, m), (x + 170, m)], "req"))
@@ -575,7 +602,7 @@ def d_public():
 
     s.append(f'<g transform="translate({OX} 0)">{"".join(b)}</g>')
     # Users → endpoint public của Runtime (tọa độ tuyệt đối)
-    s.append(arrow([(108, 624), (OX + 300, 624)], "req", "HTTPS · public endpoint", (300, 616)))
+    s.append(arrow([(108, 624), (OX + 300 - PAD, 624)], "req", "HTTPS · public endpoint", (300, 616)))
     s.append(step(300, 640, 1))
     for i, (cx, cy) in enumerate(steps, 2):
         s.append(f'<g transform="translate({OX} 0)">{step(cx, cy, i)}</g>')
