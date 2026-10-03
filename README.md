@@ -46,7 +46,7 @@ flowchart LR
 
 ## 🌐 Network map — AgentBase Runtime & MCP topology
 
-Một block **AgentBase Runtime** (container: app + LangGraph + AgentBase SDK) — đặt ở **public subnet** hay **private subnet của VPC KH** chỉ khác `networkConfig`; từ runtime break ra **LLM AIP**, **Memory + Identity**, **MCP Gateway**; từ gateway tỏa ra 3 nhóm MCP: **Internet · Cloud · On-Premise**. Bản vẽ chuẩn AWS-style (theme toggle + export PNG/SVG):
+Một block **AgentBase Runtime** (container: app + LangGraph + AgentBase SDK) — đặt ở **public subnet** hay **private subnet của VPC KH** chỉ khác `networkConfig`; từ runtime break ra **LLM AIP**, **Memory + Identity**, **MCP Gateway**; từ gateway tỏa ra 3 nhóm MCP: **Internet · Cloud · On-Premise**. Bản vẽ theo style **AWS Architecture Diagram** (icon tile màu theo category, VPC/subnet nét đứt, panel Corporate Data Center, line Direct Connect cam + VPN đỏ) — export PNG/SVG ngay trong trang, sinh bởi `docs/generate_aws_diagrams.py`:
 
 - **[docs/agentbase-network-map.html](docs/agentbase-network-map.html)** — bản đồ tổng: runtime ở 2 subnet + break-out + 3 nhóm MCP
 - **[docs/usecase-public-cloud.html](docs/usecase-public-cloud.html)** — UC1: agent PUBLIC mode, tools = tavily (Internet) + stock-mcp (Cloud)
@@ -123,7 +123,12 @@ Chi tiết: [docs/usecase-private-onprem.html](docs/usecase-private-onprem.html)
 ```
 ├── src/backend/          # main.py (routes) · agent.py (LangGraph) · memory_tools.py · mcp_client.py
 ├── src/frontend/         # index.html · style.css · app.js (no build step)
-├── docs/architecture.html  # interactive diagram (open in a browser)
+├── docs/
+│   ├── architecture.html            # interactive diagram (archify)
+│   ├── agentbase-network-map.html   # AWS-style: runtime + break-out + 3 nhóm MCP
+│   ├── usecase-public-cloud.html    # AWS-style UC1: public mode
+│   ├── usecase-private-onprem.html  # AWS-style UC2: VPC mode + on-prem
+│   └── generate_aws_diagrams.py     # generator (python3 → 3 HTML)
 ├── Dockerfile · .env.example · requirements.txt
 ```
 
