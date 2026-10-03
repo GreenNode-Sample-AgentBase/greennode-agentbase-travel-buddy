@@ -57,18 +57,17 @@ def test_schema_to_model_empty_schema():
     assert model is not None  # thêm field noop
 
 
-# ── agent._trim_messages (pre_model_hook) ──
-def test_trim_messages_keeps_short_history():
-    from agent import _trim_messages
+# ── agent._trim_history (dùng bởi checkpointer _TrimmingEvents) ──
+def test_trim_history_keeps_short_history():
+    from agent import _trim_history
     from langchain_core.messages import AIMessage, HumanMessage
 
     msgs = [HumanMessage("a"), AIMessage("b")]
-    out = _trim_messages({"messages": msgs})
-    assert out["llm_input_messages"] == msgs
+    assert _trim_history(msgs) == msgs
 
 
-def test_trim_messages_cuts_at_human_boundary_and_keeps_system():
-    from agent import _trim_messages
+def test_trim_history_cuts_at_human_boundary_and_keeps_system():
+    from agent import _trim_history
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
     sysmsg = SystemMessage("system")
@@ -79,8 +78,7 @@ def test_trim_messages_cuts_at_human_boundary_and_keeps_system():
         msgs.append(AIMessage(f"a{i}"))
     assert len(msgs) == 51
 
-    out = _trim_messages({"messages": msgs})
-    trimmed = out["llm_input_messages"]
+    trimmed = _trim_history(msgs)
     assert len(trimmed) <= 41  # system + 40
     assert trimmed[0] == sysmsg
     # phải bắt đầu bằng HumanMessage (không cắt giữa cặp AI→tool)

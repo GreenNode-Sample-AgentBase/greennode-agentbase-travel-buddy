@@ -143,19 +143,6 @@ async def recall(query: str) -> str:
     return "\n".join(f"- {_field(r, 'memory')} (score: {float(_field(r, 'score', 0) or 0):.2f})" for r in results)
 
 
-async def search_facts(actor_id: str, query: str, limit: int = 20) -> list[dict]:
-    """Search records cho 1 actor — dùng để inject context / hiển thị UI."""
-    results = await memory_client().search_memory_records_async(
-        id=MEMORY_ID,
-        namespace=build_namespace(actor_id),
-        request=MemoryRecordSearchRequest(query=query, limit=limit),
-    )
-    return [
-        {"id": _field(r, "id"), "memory": _field(r, "memory"), "score": _field(r, "score", 0)}
-        for r in results
-    ]
-
-
 async def browse_group(actor_id: str, strategy_id: str, limit: int = 100) -> list[dict]:
     """Browse toàn bộ records của 1 strategy namespace (cho memory panel)."""
     records = await memory_client().list_memory_records_async(

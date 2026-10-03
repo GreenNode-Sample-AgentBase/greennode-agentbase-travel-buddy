@@ -31,6 +31,7 @@ from starlette.staticfiles import StaticFiles
 
 from greennode_agentbase import (
     GreenNodeAgentBaseApp,
+    GreenNodeRequestError,
     RequestContext,
     PingStatus,
 )
@@ -38,7 +39,6 @@ from greennode_agentbase import (
 import agent as agent_mod
 import memory_tools
 from memory_tools import run_coro
-from mcp_client import mcp_request
 
 logging.basicConfig(
     level=logging.INFO,
@@ -158,6 +158,25 @@ def _get_user_id(context) -> str:
     return ""
 
 
+USER_HEADER = "X-GreenNode-AgentBase-User-Id"
+SESSION_HEADER = "X-GreenNode-AgentBase-Session-Id"
+MISSING_A2A_USER_MSG = (
+    "Thiếu header X-GreenNode-AgentBase-User-Id (memory actor) — A2A caller phải đi qua "
+    "AgentBase Runtime (header tự gắn) hoặc tự gửi header này."
+)
+MISSING_HEADERS_MSG = (
+    "Thiếu headers bắt buộc: X-GreenNode-AgentBase-User-Id và "
+    "X-GreenNode-AgentBase-Session-Id (để tách bộ nhớ theo user/session). "
+    "Không có giá trị mặc định — tránh trộn dữ liệu giữa các user."
+)
+
+
+def _missing_identity(user_id: str, session_id: str) -> bool:
+    """True nếu thiếu user/session id (khuyến nghị docs: KHÔNG fallback default,
+    memory path phải trả lỗi rõ ràng khi thiếu headers)."""
+    return not (user_id or "").strip() or not (session_id or "").strip()
+
+
 @app.entrypoint
 def handler(payload: dict, context: RequestContext) -> dict:
     """Chat entrypoint — BẮT BUỘC có 2 headers user/session (memory integration)."""
@@ -170,14 +189,9 @@ def handler(payload: dict, context: RequestContext) -> dict:
         return {"status": "success", "agent": "travel-buddy", **agent_mod.whoami()}
 
     user_id = _get_user_id(context)
-    if not user_id or not context.session_id:
-        return {
-            "status": "error",
-            "error": (
-                "Thiếu headers bắt buộc: X-GreenNode-AgentBase-User-Id và "
-                "X-GreenNode-AgentBase-Session-Id (để tách bộ nhớ theo user/session)."
-            ),
-        }
+    if _missing_identity(user_id, context.session_id):
+        # SDK map GreenNodeRequestError(status_code=400) → HTTP 400 (không fallback default)
+        raise GreenNodeRequestError(MISSING_HEADERS_MSG, status_code=400)
 
     message = payload.get("message") or payload.get("input") or "Hello"
 
@@ -319,13 +333,10 @@ async def _chat_stream(request: Request) -> StreamingResponse:
     """
     if AGENT_API_KEY and request.headers.get("X-API-Key") != AGENT_API_KEY:
         return JSONResponse({"status": "error", "error": "Unauthorized"}, status_code=401)
-    user_id = request.headers.get("X-GreenNode-AgentBase-User-Id", "")
-    session_id = request.headers.get("X-GreenNode-AgentBase-Session-Id", "")
-    if not user_id or not session_id:
-        return JSONResponse(
-            {"status": "error", "error": "Thiếu headers X-GreenNode-AgentBase-User-Id / -Session-Id"},
-            status_code=400,
-        )
+    user_id = request.headers.get(USER_HEADER, "")
+    session_id = request.headers.get(SESSION_HEADER, "")
+    if _missing_identity(user_id, session_id):
+        return JSONResponse({"status": "error", "error": MISSING_HEADERS_MSG}, status_code=400)
     try:
         body = await request.json()
     except Exception:
@@ -450,9 +461,11 @@ def _a2a_text(params: dict) -> str:
     ).strip()
 
 
-def _a2a_ctx(body: dict) -> str:
+def _a2a_ctx(body: dict, header_session: str = "") -> str:
+    """contextId (A2A) = thread_id: ưu tiên contextId của message, rồi header Session-Id
+    của runtime; chưa có → sinh mới (hội thoại mới, không dùng chung)."""
     msg = (body.get("params") or {}).get("message") or {}
-    return msg.get("contextId") or f"a2a-{uuid.uuid4().hex[:12]}"
+    return msg.get("contextId") or header_session or f"a2a-{uuid.uuid4().hex[:12]}"
 
 
 async def _a2a_turn(user: str, ctx: str, text: str) -> tuple[str, list[str]]:
@@ -521,11 +534,20 @@ async def _a2a_route(request: Request):
             {"jsonrpc": "2.0", "id": rid,
              "error": {"code": -32602, "message": "params.message.parts không có text"}}
         )
-    ctx = _a2a_ctx(body)
+    # Memory actor = user thật từ header runtime (không dùng actor mặc định chung "a2a"
+    # — sẽ trộn memory giữa các caller). Thiếu header → 400.
+    a2a_user = request.headers.get(USER_HEADER, "").strip()
+    if not a2a_user:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "id": rid,
+             "error": {"code": -32602, "message": MISSING_A2A_USER_MSG}},
+            status_code=400,
+        )
+    ctx = _a2a_ctx(body, request.headers.get(SESSION_HEADER, "").strip())
 
     if method == "message/send":
         try:
-            reply, _ = await asyncio.to_thread(run_coro, _a2a_turn("a2a", ctx, text))
+            reply, _ = await asyncio.to_thread(run_coro, _a2a_turn(a2a_user, ctx, text))
         except Exception as e:
             logger.exception("a2a message/send error")
             return JSONResponse(
@@ -542,13 +564,13 @@ async def _a2a_route(request: Request):
     async def _produce():
         reply = ""
         try:
-            with _lf_scope("travel-buddy-a2a-stream", "a2a", ctx, ["a2a", "stream"]):
+            with _lf_scope("travel-buddy-a2a-stream", a2a_user, ctx, ["a2a", "stream"]):
                 cb = _lf_callback()
                 async for ev in agent_mod.get_agent().astream_events(
                     {"messages": [{"role": "user", "content": text}]},
                     config={
                         "callbacks": [cb] if cb else [],
-                        "configurable": {"thread_id": ctx, "actor_id": "a2a"},
+                        "configurable": {"thread_id": ctx, "actor_id": a2a_user},
                     },
                 ):
                     if ev["event"] == "on_chat_model_stream":
@@ -558,7 +580,7 @@ async def _a2a_route(request: Request):
                             uv_loop.call_soon_threadsafe(out_q.put_nowait, ("tok", token))
             if reply:
                 try:
-                    await memory_tools.add_chat_events("a2a", ctx, text, reply)
+                    await memory_tools.add_chat_events(a2a_user, ctx, text, reply)
                 except Exception:
                     pass
             uv_loop.call_soon_threadsafe(out_q.put_nowait, ("done", reply))
