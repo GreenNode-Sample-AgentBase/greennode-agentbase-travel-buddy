@@ -30,16 +30,7 @@ The 3-column dark UI: **Users/Sessions** · **Chat** (markdown + ✨ memory call
 
 ## 🏗 Architecture
 
-```mermaid
-flowchart LR
-    U[Web user] -->|POST /invocations| R[travel-buddy Runtime<br/>LangGraph :8080]
-    R -->|events + records| M[(Memory<br/>2 strategies)]
-    R -->|chat completions| L[LLM AIP<br/>GLM]
-    R -->|tools/call| G{{MCP Gateway<br/>Inbound Auth: IAM}}
-    G --> P{Policy Group<br/>first match wins}
-    P --> C[MCP Connector<br/>Outbound Auth: API Key 2LO]
-    C --> T[Tavily MCP]
-```
+![Kiến trúc travel-buddy](docs/architecture.svg)
 
 > MCP flow: **Agent → MCP Gateway (Inbound Auth) → Policy Group → MCP Connector (Outbound Auth) → MCP server**. LLM calls are a **separate path** (direct to LLM AIP here; on AgentBase Runtime they can also go through the *Sidecar LLM Proxy* — see [LLM endpoint](#-llm-endpoint-optional-sidecar-llm-proxy)).
 

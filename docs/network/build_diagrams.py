@@ -329,6 +329,7 @@ CONNECTORS = {
     "erp": ("https://xx.xx.x.x:8443 · on-prem", "API Key · 2LO"),
     "hr": ("https://xx.xx.x.x:8443 · on-prem", "OAuth · 2LO"),
     "github": ("https://<GitHub MCP endpoint>", "OAuth · 3LO"),
+    "restaurant": ("endpoint của zalo-mcp-server", "No authorization"),
 }
 
 
@@ -658,6 +659,149 @@ def d4():
     return svg(W, Hh, s, "Thông mạng on-premise với VPC của KH trên GreenNode: Site-to-Site VPN hoặc Interconnect, route và firewall hai đầu")
 
 
+# ═════════════════════════ Kiến trúc riêng của từng sample repo ═══════════════
+# Mỗi hình ghi vào docs/architecture.svg của repo tương ứng (repo anh em cùng thư mục sample-repos).
+
+def _arch_svg(W, Hh, s, label):
+    return svg(W, Hh, s, label)
+
+
+def a_travel():
+    """sample-travel-buddy: web user → Runtime (UI + LangGraph) → LLM/Memory · MCP Gateway → Tavily."""
+    W, Hh = 1500, 470
+    s = []
+    s.append(group(20, 60, 240, 380, "Internet", "internet"))
+    s.append(people(116, 200) + lbl_below(116, 200, "Người dùng web", ["Chat UI · REST · A2A"]))
+    s.append(group(290, 20, 920, 430, "AgentBase Platform — managed bởi GreenNode", "managed"))
+    s.append(node(330, 60, "gn-ai", C["ai"], "LLM — AI Platform", ["qua sidecar :18080"]))
+    s.append(node(480, 60, "db", C["db"], "Memory", ["CUSTOM + SEMANTIC"]))
+    s.append(node(360, 200, "agent-runtime", C["compute"], "travel-buddy", ["Agent Runtime · UI + LangGraph"]))
+    mids = gateway_compact(s, 600, 200, "MCP Gateway · Public", ["tavily"], "Network: Public")
+    s.append(group(1240, 60, 240, 380, "Internet", "internet"))
+    s.append(node(1300, mids["tavily"] - 24, "mcp", C["mcp"], "Tavily MCP", ["web search · extract"]))
+
+    s.append(arrow([(164, 224), (360, 224)], "req", "HTTPS", (262, 216)))
+    s.append(f'<polyline points="384,200 384,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    s.append(f'<polyline points="354,170 504,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    s.append(arrow([(354, 170), (354, 146)], "req"))
+    s.append(arrow([(504, 170), (504, 146)], "req"))
+    s.append(arrow([(408, 224), (560, 224), (560, 258), (614, 258)], "req", "tools/call", (484, 216)))
+    s.append(arrow([(1040, mids["tavily"]), (1300, mids["tavily"])], "req", "API Key (Access Control)", (1170, mids["tavily"] - 8)))
+    for i, (cx, cy) in enumerate([(262, 240), (384, 185), (560, 240), (1170, mids["tavily"] + 16)], 1):
+        s.append(step(cx, cy, i))
+    s.append(legend(30, Hh - 14, [("req", "request / data path")]))
+    return _arch_svg(W, Hh, s, "Kiến trúc travel-buddy: người dùng web gọi Agent Runtime; agent dùng LLM qua sidecar, "
+                     "Memory 2 strategy, và gọi Tavily qua MCP Gateway Public")
+
+
+def a_zalo():
+    """sample-zalo-restaurant: Zalo → webhook → bot Runtime → MCP Gateway → MCP server Runtime (SQLite)."""
+    W, Hh = 1500, 470
+    s = []
+    s.append(group(20, 60, 240, 380, "Internet", "internet"))
+    s.append(people(116, 90) + lbl_below(116, 90, "Khách hàng", ["chat trên Zalo"]))
+    s.append(node(116, 260, "globe", C["gray"], "Zalo Bot Platform", ["gửi webhook"]))
+    s.append(group(290, 20, 1190, 430, "AgentBase Platform — managed bởi GreenNode", "managed"))
+    s.append(node(330, 60, "gn-ai", C["ai"], "LLM — AI Platform", ["qua sidecar :18080"]))
+    s.append(node(480, 60, "db", C["db"], "Memory", ["khách quay lại"]))
+    s.append(node(360, 260, "agent-runtime", C["compute"], "zalo-restaurant-bot", ["Agent Runtime · LangGraph"]))
+    mids = gateway_compact(s, 600, 200, "MCP Gateway", ["restaurant"], "Network: Public")
+    s.append(node(1110, mids["restaurant"] - 24, "mcp", C["mcp"], "zalo-mcp-server", ["Agent Runtime · 7 tools"]))
+    s.append(node(1330, mids["restaurant"] - 24, "db", C["db"], "restaurant.db", ["SQLite · menu, booking"]))
+
+    s.append(arrow([(140, 170), (140, 260)], "req", "nhắn tin", (150, 222), "start"))
+    s.append(arrow([(164, 284), (360, 284)], "req", "HTTPS webhook (secret)", (262, 276)))
+    s.append(f'<polyline points="384,260 384,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    s.append(f'<polyline points="354,170 504,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    s.append(arrow([(354, 170), (354, 146)], "req"))
+    s.append(arrow([(504, 170), (504, 146)], "req"))
+    s.append(arrow([(408, 284), (560, 284), (560, 258), (614, 258)], "req", "tools/call", (484, 276)))
+    s.append(arrow([(1040, mids["restaurant"]), (1110, mids["restaurant"])], "req"))
+    s.append(arrow([(1158, mids["restaurant"]), (1330, mids["restaurant"])], "req", "SQL", (1244, mids["restaurant"] - 8)))
+    for i, (cx, cy) in enumerate([(140, 200), (262, 300), (384, 215), (560, 270), (1075, mids["restaurant"] + 16)], 1):
+        s.append(step(cx, cy, i))
+    s.append(legend(30, Hh - 14, [("req", "request / data path")]))
+    return _arch_svg(W, Hh, s, "Kiến trúc zalo-restaurant: Zalo gửi webhook tới bot trên Agent Runtime; bot gọi MCP server "
+                     "(runtime riêng, SQLite) qua MCP Gateway")
+
+
+def a_stock():
+    """sample-mcp-stock-server: Agent → MCP Gateway (connector stock, API Key) → vn-stock-mcp → 24hMoney."""
+    W, Hh = 1500, 560
+    s = []
+    s.append(group(20, 20, 1200, 440, "AgentBase Platform — managed bởi GreenNode", "managed"))
+    s.append(node(60, 215, "agent-runtime", C["compute"], "Agent", ["travel-buddy · zalo-bot …"]))
+    s.append(node(560, 40, "key", C["idc"], "Access Control", ["secret: stock-mcp-key"]))
+    mids = gateway_compact(s, 300, 150, "MCP Gateway", ["stock"], "Network: Public")
+    s.append(group(800, 120, 400, 320, "Agent Runtime · vn-stock-mcp", "shared"))
+    s.append(node(830, mids["stock"] - 24, "inbound-auth", C["net"], "API key check", ["fail-closed · 401 / 503"]))
+    s.append(node(1010, mids["stock"] - 24, "mcp", C["mcp"], "13 MCP tools", ["/mcp · FastMCP"]))
+    s.append(card(820, 300, 360, 120, "Tools", [
+        "Thị trường: top · gainers · losers · active · quote",
+        "Doanh nghiệp: search · profile · valuation",
+        "Lịch sử: price · foreign · dividend · plan · tin",
+    ]))
+    s.append(group(1250, 20, 230, 440, "Internet", "internet"))
+    s.append(node(1310, mids["stock"] - 24, "globe", C["gray"], "24hMoney API", ["public · không chính thức"]))
+
+    s.append(arrow([(108, 239), (250, 239), (250, 208), (314, 208)], "req", "tools/call", (180, 231)))
+    s.append(arrow([(584, 125), (584, 176)], "req", "API key", (594, 142), "start"))
+    s.append(arrow([(740, mids["stock"]), (830, mids["stock"])], "req", "X-Api-Key", (785, mids["stock"] - 8)))
+    s.append(arrow([(878, mids["stock"]), (1010, mids["stock"])], "req", "OK", (944, mids["stock"] - 8)))
+    s.append(arrow([(1058, mids["stock"]), (1310, mids["stock"])], "req", "HTTPS", (1270, mids["stock"] - 8)))
+    for i, (cx, cy) in enumerate([(180, 255), (584, 160), (785, mids["stock"] + 16), (944, mids["stock"] + 16),
+                                  (1150, mids["stock"] + 16)], 1):
+        s.append(step(cx, cy, i))
+    # cùng image chạy ở 3 nơi
+    s.append(text(20, 500, "Cùng 1 image, chạy ở 3 nơi:", 12, 700, INK))
+    for x, ic, t1, t2 in [(230, "agent-runtime", "Agent Runtime", "gateway Public"),
+                          (560, "gn-vks", "vServer / VKS trong VPC của KH", "gateway Private"),
+                          (960, "building", "On-premise (VPN / Interconnect)", "gateway Private + Route CIDRs")]:
+        s.append(icon(x, 472, ic, C["compute"] if ic != "building" else MUTED))
+        s.append(text(x + 58, 492, t1, 11.5, 700, INK) + text(x + 58, 508, t2, 10.5, 400, SLATE))
+    s.append(legend(30, Hh - 14, [("req", "request / data path")]))
+    return _arch_svg(W, Hh, s, "Kiến trúc mcp-stock-server: agent gọi tool qua MCP Gateway; connector stock gắn API key "
+                     "từ Access Control; server kiểm tra key rồi gọi API 24hMoney")
+
+
+def a_byo():
+    """sample-byo-agent-mcp-gateway: agent / app chạy ngoài AgentBase → MCP Gateway Public → MCP servers."""
+    W, Hh = 1500, 480
+    s = []
+    s.append(group(20, 60, 330, 380, "Hạ tầng của bạn (ngoài GreenNode)", "onprem"))
+    s.append(node(80, 120, "app", C["app"], "Agent / app của bạn", ["LangGraph · script · CLI"]))
+    s.append(node(80, 280, "app", C["app"], "Claude Desktop / Cursor", ["qua mcp-remote"]))
+    s.append(group(400, 20, 750, 440, "AgentBase Platform — managed bởi GreenNode", "managed"))
+    s.append(node(720, 40, "key", C["idc"], "Access Control", ["secret của MCP server"]))
+    mids = gateway_compact(s, 450, 120, "MCP Gateway · Public", ["tavily", "stock"], "Network: Public")
+    s.append(node(1000, mids["stock"] - 24, "mcp", C["mcp"], "MCP server", ["trên Agent Runtime"]))
+    s.append(group(1180, 60, 300, 380, "Internet", "internet"))
+    s.append(node(1250, mids["tavily"] - 24, "mcp", C["mcp"], "MCP SaaS", ["Tavily · GitHub …"]))
+    s.append(card(450, 340, 560, 90, "Lưu ý", [
+        "Gọi từ bên ngoài → gateway phải là Public. Gateway Private chỉ",
+        "truy cập được trong mạng private của KH.",
+    ]))
+
+    s.append(f'<polyline points="128,144 380,144" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    s.append(f'<polyline points="128,304 380,304" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    s.append(f'<polyline points="380,144 380,304" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    s.append(arrow([(380, 178), (464, 178)], "req"))
+    s.append(text(254, 136, "HTTPS · IAM token / JWT", 10.5, 600, INK, "middle", halo=True))
+    s.append(arrow([(744, 125), (744, 146)], "req"))
+    s.append(arrow([(890, mids["tavily"]), (1250, mids["tavily"])], "req"))
+    s.append(arrow([(890, mids["stock"]), (1000, mids["stock"])], "req"))
+    for i, (cx, cy) in enumerate([(254, 160), (420, 178), (1110, mids["tavily"]), (945, mids["stock"])], 1):
+        s.append(step(cx, cy, i))
+    s.append(legend(30, Hh - 14, [("req", "request / data path")]))
+    return _arch_svg(W, Hh, s, "Kiến trúc BYO agent: agent hoặc app chạy ngoài AgentBase gọi MCP Gateway Public bằng IAM "
+                     "token hoặc JWT; gateway kiểm tra policy rồi gọi MCP server")
+
+
+ROOT = OUT.parents[2]          # thư mục sample-repos (chứa các repo anh em)
+ARCH_JOBS = [("sample-travel-buddy", a_travel), ("sample-zalo-restaurant", a_zalo),
+             ("sample-mcp-stock-server", a_stock), ("sample-byo-agent-mcp-gateway", a_byo)]
+
+
 JOBS = [("01-connectivity-map.svg", d1), ("02-uc-public.svg", d_public), ("03-uc-private-cloud.svg", d2),
         ("04-uc-hybrid-onprem.svg", d3), ("05-onprem-connectivity.svg", d4)]
 
@@ -665,3 +809,9 @@ if __name__ == "__main__":
     for name, fn in JOBS:
         (OUT / name).write_text(fn(), encoding="utf-8")
         print("✓", name)
+    for repo, fn in ARCH_JOBS:          # hình kiến trúc của từng repo sample
+        d = ROOT / repo / "docs"
+        if d.parent.is_dir():
+            d.mkdir(exist_ok=True)
+            (d / "architecture.svg").write_text(fn(), encoding="utf-8")
+            print("✓", repo + "/docs/architecture.svg")
