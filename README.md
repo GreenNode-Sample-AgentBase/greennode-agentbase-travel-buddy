@@ -1,6 +1,6 @@
 # 🧭 Travel Buddy — A Travel Assistant with Memory
 
-[![CI](https://github.com/GreenNode-Samples/greennode-agentbase-sample-travel-buddy/actions/workflows/ci.yml/badge.svg)](https://github.com/GreenNode-Samples/greennode-agentbase-sample-travel-buddy/actions/workflows/ci.yml)
+[![CI](https://github.com/GreenNode-Samples/sample-travel-buddy/actions/workflows/ci.yml/badge.svg)](https://github.com/GreenNode-Samples/sample-travel-buddy/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > An **end-to-end** sample on **GreenNode AgentBase**: Agent Runtime (LangGraph) + **Memory** (2 strategies) + **MCP Governance** (MCP Gateway + Policy Group) + **LLM AIP**. Runs locally out of the box **and** deploys straight to your own AgentBase account.

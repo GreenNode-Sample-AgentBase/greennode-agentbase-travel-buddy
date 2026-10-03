@@ -40,7 +40,7 @@ Agent Runtime và MCP Gateway **không chạy trong VPC của KH**: chúng nằm
 | 3 | Runtime → LLM, Memory, Access Control | LLM qua Sidecar LLM Proxy `:18080`; Memory, Access Control qua SDK |
 | 4 | Runtime → MCP Gateway | MCP `tools/call`; gateway xác thực Inbound Auth rồi kiểm tra Policy Group |
 | 5 | Gateway Public · connector `tavily` → MCP trên Internet | Outbound API Key |
-| 6 | Gateway Public · connector `stock` → MCP chạy trên Agent Runtime | Ví dụ sample `greennode-agentbase-sample-mcp-stock-server` |
+| 6 | Gateway Public · connector `stock` → MCP chạy trên Agent Runtime | Ví dụ sample `sample-mcp-stock-server` |
 | 7 | Gateway Private · connector `crm` → MCP trong VPC của KH | Gateway Private → VPC Peering → IP private trên vServer / VKS |
 | 8 | Gateway Private · connector `erp` → MCP on-premise | Gateway Private (Route CIDRs = CIDR on-prem) → VPC Peering → VPC của KH → VPN GW / Interconnect → firewall DC |
 
