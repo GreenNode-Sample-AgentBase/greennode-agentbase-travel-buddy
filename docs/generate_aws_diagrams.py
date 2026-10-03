@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""AWS-style architecture diagrams for GreenNode AgentBase — generator.
+"""AWS-style architecture diagrams for GreenNode AgentBase — generator (v2, orthogonal).
 
-Render 3 self-contained HTML + SVG diagrams (AWS Architecture Diagram style):
-  1. agentbase-network-map.html   — master map (runtime placement + break-out + 3 MCP groups)
-  2. usecase-public-cloud.html    — UC1: agent PUBLIC mode (tavily + stock-mcp)
-  3. usecase-private-onprem.html  — UC2: agent VPC mode + MCP on-premise qua VPN/Interconnect
+Mọi mũi tên đi theo lưới vuông góc (thẳng hoặc 1 góc rẽ) — không đường chéo.
+  1. agentbase-network-map.html   — master map
+  2. usecase-public-cloud.html    — UC1: agent PUBLIC mode
+  3. usecase-private-onprem.html  — UC2: agent VPC mode + MCP on-premise
 """
 import html as H
 import pathlib
 
 DOC = pathlib.Path(__file__).resolve().parent
 
-# ── AWS palette ──────────────────────────────────────────────────────────────
-INK = "#16191F"        # text chính (AWS Squid Ink)
-SLATE = "#545B64"      # text phụ / line
-BORDER = "#879596"     # dashed boundary
-SUB_BORDER = "#B6C2CF" # subnet border
-PANEL = "#232F3E"      # on-prem navy
+INK = "#16191F"
+SLATE = "#545B64"
+BORDER = "#879596"
+SUB_BORDER = "#B6C2CF"
+PANEL = "#232F3E"
 RED = "#DD344C"
 ORANGE = "#ED7100"
 
@@ -52,40 +51,30 @@ def ttext(x, y, s, size=12, weight=600, color=INK, anchor="start", halo=False, i
             f'text-anchor="{anchor}" style="{style}{font}">{H.escape(s)}</text>')
 
 
-def tile(x, y, grad, glyph, s=52):
-    gid = GRADS[grad][0]
-    out = [f'<rect x="{x}" y="{y}" width="{s}" height="{s}" rx="9" fill="url(#{gid})"/>']
-    out.append(GLYPHS[glyph](x, y))
-    return "".join(out)
-
-
 def _p(d, w=2.4, fill="none", color="#FFFFFF"):
     return f'<path d="{d}" fill="{fill}" stroke="{color}" stroke-width="{w}" stroke-linecap="round" stroke-linejoin="round"/>'
 
 
 GLYPHS = {
-    # compute / runtime — ô vuông có 2 thanh dọc (EC2-ish)
     "compute": lambda x, y: _p(f"M{x+14} {y+15}h24v22h-24z") + _p(f"M{x+22} {y+15}v22", 2) + _p(f"M{x+30} {y+15}v22", 2),
-    # database cylinder
     "db": lambda x, y: _p(f"M{x+15} {y+17}a11 4.5 0 0 1 22 0v17a11 4.5 0 0 1 -22 0z")
         + _p(f"M{x+15} {y+17}a11 4.5 0 0 0 22 0") + _p(f"M{x+15} {y+26}a11 4.5 0 0 0 22 0", 1.8),
-    # gateway — cổng + mũi tên xuyên qua
     "gateway": lambda x, y: _p(f"M{x+12} {y+26}h26", 2.6) + f'<path d="M{x+40} {y+26}l-7-4.5v9z" fill="#FFFFFF"/>'
         + f'<rect x="{x+20}" y="{y+16}" width="3.6" height="20" fill="#FFFFFF"/><rect x="{x+28}" y="{y+16}" width="3.6" height="20" fill="#FFFFFF"/>',
-    # AI — 3 node nối nhau
     "ai": lambda x, y: _p(f"M{x+17} {y+18}L{x+35} {y+18}M{x+17} {y+18}L{x+26} {y+33}M{x+35} {y+18}L{x+26} {y+33}", 2)
         + f'<circle cx="{x+17}" cy="{y+18}" r="3.4" fill="#FFFFFF"/><circle cx="{x+35}" cy="{y+18}" r="3.4" fill="#FFFFFF"/><circle cx="{x+26}" cy="{y+33}" r="3.4" fill="#FFFFFF"/>',
-    # globe
     "globe": lambda x, y: _p(f"M{x+26} {y+14}a12 12 0 1 0 0.01 0") + _p(f"M{x+14} {y+26}h24") + _p(f"M{x+26} {y+14}a5.5 12 0 0 0 0 24a5.5 12 0 0 0 0 -24", 1.8),
-    # chart tăng
     "chart": lambda x, y: _p(f"M{x+13} {y+36}L{x+20} {y+27}L{x+26} {y+31}L{x+39} {y+15}", 2.6)
         + f'<circle cx="{x+39}" cy="{y+15}" r="2.4" fill="#FFFFFF"/>',
-    # vpn — 2 mũi tên ngược chiều
     "vpn": lambda x, y: _p(f"M{x+12} {y+19}h24", 2.4) + f'<path d="M{x+40} {y+19}l-6-4v8z" fill="#FFFFFF"/>'
         + _p(f"M{x+40} {y+31}h-24", 2.4) + f'<path d="M{x+12} {y+31}l6-4v8z" fill="#FFFFFF"/>',
-    # db trắng (cho panel navy)
     "db_white": lambda x, y: GLYPHS["db"](x, y),
 }
+
+
+def tile(x, y, grad, glyph, s=52):
+    gid = GRADS[grad][0]
+    return f'<rect x="{x}" y="{y}" width="{s}" height="{s}" rx="9" fill="url(#{gid})"/>' + GLYPHS[glyph](x, y)
 
 
 def svc(x_text, y_name, name, sub, color=INK, subcolor=SLATE):
@@ -104,7 +93,6 @@ def dashed_box(x, y, w, h, title):
 
 
 def subnet(x, y, w, h, title, private=False):
-    t = title + ("  🔒" if False else "")
     out = (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" fill="#FBFCFD" stroke="{SUB_BORDER}" stroke-width="1.3"/>')
     out += tab(x + 12, y + 12, title)
     if private:
@@ -118,10 +106,9 @@ def LOCK(cx, cy):
 
 
 def navy_panel(x, y, w, h, title, sub):
-    out = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{PANEL}"/>'
-    out += ttext(x + 16, y + 28, title, 12.5, 700, "#FFFFFF")
-    out += ttext(x + 16, y + 46, sub, 10, 400, "#D5DBDB")
-    return out
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{PANEL}"/>'
+            + ttext(x + 16, y + 28, title, 12.5, 700, "#FFFFFF")
+            + ttext(x + 16, y + 46, sub, 10, 400, "#D5DBDB"))
 
 
 def route_card(x, y, w, h, title, lines):
@@ -134,13 +121,15 @@ def route_card(x, y, w, h, title, lines):
     return out
 
 
-def arrow(pts, variant="default", label=None, lx=None, ly=None, dash=False, anchor="middle"):
+def arrow(pts, variant="default", label=None, lx=None, ly=None, anchor="middle", dash=False):
+    """pts = orthogonal waypoints — line vuông góc, không chéo."""
     style = {"default": (SLATE, 1.7, "mk"), "emphasis": (INK, 2.5, "mkd"),
              "orange": (ORANGE, 3.6, "mko"), "red": (RED, 2.2, "mkr")}[variant]
     color, width, marker = style
     dashattr = ' stroke-dasharray="7 5"' if dash else ''
     p = " ".join(f"{a},{b}" for a, b in pts)
-    out = (f'<polyline points="{p}" fill="none" stroke="{color}" stroke-width="{width}"{dashattr} marker-end="url(#{marker})"/>')
+    out = (f'<polyline points="{p}" fill="none" stroke="{color}" stroke-width="{width}"{dashattr} '
+           f'stroke-linejoin="round" marker-end="url(#{marker})"/>')
     if label:
         out += ttext(lx, ly, label, 9.8, 600, SLATE if variant != "emphasis" else INK, anchor, halo=True)
     return out
@@ -157,7 +146,7 @@ def crossed(x1, y1, x2, y2, cx, cy):
             + _p(f"M{cx-6} {cy-6}L{cx+6} {cy+6}M{cx+6} {cy-6}L{cx-6} {cy+6}", 2.6, color=RED))
 
 
-def shell(title, subtitle, svg, w, h, legend, fname):
+def shell(title, subtitle, svg, w, legend, fname):
     lg = "".join(
         f'<span class="chip"><span class="dot" style="background:{c}"></span>{H.escape(t)}</span>'
         for c, t in legend)
@@ -204,182 +193,180 @@ LEGEND = [
     ("#232F3E", "On-Premise KH"),
 ]
 
+# ── Lưới chung ───────────────────────────────────────────────────────────────
+# Users cy=279 · VPC x 290..640 · Platform x 700..1120 · Right col x 1180..1500
+# Hàng tile: LLM cy 273 · Memory cy 288+? — dùng ROW_* tuyệt đối
+ROW_LLM, ROW_MEM, ROW_GW, ROW_STOCK = 431, 519, 607, 707
+# tile y = ROW - 26
+
+
+def users_group(cx=135, cy=431):
+    return (person(cx - 35, cy) + person(cx, cy - 6) + person(cx + 35, cy)
+            + ttext(cx, cy + 40, "Users", 12, 700, anchor="middle")
+            + ttext(cx, cy + 56, "browser · webhook · A2A client", 9.5, 400, SLATE, "middle"))
+
+
+def platform_column(s, llm_sub="GLM · OpenAI-compat · API key", mem_sub="SDK · history + facts · secret",
+                    gw_sub="policy · outbound auth", with_stock=True):
+    s.append(tile(740, ROW_LLM - 26, "ml", "ai"));          s.append(svc(806, ROW_LLM - 6, "LLM AIP", llm_sub))
+    s.append(tile(740, ROW_MEM - 26, "db", "db"));          s.append(svc(806, ROW_MEM - 6, "Memory + Identity", mem_sub))
+    s.append(tile(740, ROW_GW - 26, "network", "gateway")); s.append(svc(806, ROW_GW - 6, "MCP Gateway", gw_sub))
+    if with_stock:
+        s.append(tile(740, ROW_STOCK - 26, "db", "chart")); s.append(svc(806, ROW_STOCK - 6, "stock-mcp", "MCP · Cloud · API key inbound"))
+
 
 # ═══════════════════════════ 1. MASTER MAP ═══════════════════════════════════
 def build_master() -> str:
-    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1000" viewBox="0 0 1560 1000" font-family="Segoe UI,Helvetica,Arial,sans-serif">', defs()]
+    W, HGT = 1560, 990
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{HGT}" viewBox="0 0 {W} {HGT}" font-family="Segoe UI,Helvetica,Arial,sans-serif">', defs()]
 
-    # Users
-    s.append(person(110, 250)); s.append(person(145, 244)); s.append(person(180, 250))
-    s.append(ttext(145, 292, "Users", 12, 700, anchor="middle"))
-    s.append(ttext(145, 308, "browser · webhook · A2A client", 9.5, 400, SLATE, "middle"))
-
-    # GreenNode Cloud + VPC + subnets
-    s.append(dashed_box(250, 60, 830, 900, "GreenNode Cloud — vNG Cloud (vServer)"))
-    s.append(dashed_box(290, 130, 360, 790, "VPC của KH"))
-    s.append(subnet(310, 180, 320, 250, "Public subnet"))
-    s.append(tile(400, 270, "compute", "compute"))
-    s.append(svc(466, 290, "AgentBase Runtime", "PUBLIC mode · public URL"))
-    s.append(ttext(466, 322, "app + LangGraph + AgentBase SDK", 9, 400, SLATE))
-
-    s.append(subnet(310, 460, 320, 220, "Private subnet", private=True))
-    s.append(tile(400, 545, "compute", "compute"))
-    s.append(svc(466, 565, "AgentBase Runtime", "VPC mode · no egress"))
-    s.append(ttext(466, 597, "caller: app nội bộ VPC", 9, 400, SLATE, italic=True))
-
-    s.append(route_card(310, 710, 320, 150, "VPC route table", [
+    s.append(users_group())
+    s.append(dashed_box(250, 240, 870, 700, "GreenNode Cloud — vNG Cloud (vServer)"))
+    s.append(dashed_box(290, 305, 350, 610, "VPC của KH"))
+    # public subnet + runtime (tile cy = ROW_LLM → thẳng hàng LLM)
+    s.append(subnet(310, 360, 310, 170, "Public subnet"))
+    s.append(tile(350, 405, "compute", "compute"))
+    s.append(svc(416, 420, "AgentBase Runtime", "PUBLIC mode · public URL"))
+    # private subnet + runtime
+    s.append(subnet(310, 560, 310, 160, "Private subnet", private=True))
+    s.append(tile(350, 605, "compute", "compute"))
+    s.append(svc(416, 620, "AgentBase Runtime", "VPC mode · no egress"))
+    s.append(ttext(416, 652, "caller: app nội bộ VPC", 9, 400, SLATE, italic=True))
+    # route table
+    s.append(route_card(310, 750, 310, 140, "VPC route table", [
         "local  → trong VPC",
         "0.0.0.0/0  → platform edge (public)",
         "10.60.0.0/16  → VGW (VPN / DX)",
         "= routeCidrs của runtime / gateway"]))
 
-    # Platform managed
-    s.append(dashed_box(690, 130, 360, 790, "AgentBase Platform — managed"))
-    s.append(tile(720, 200, "ml", "ai"))
-    s.append(svc(786, 220, "LLM AIP", "GLM · OpenAI-compat · API key"))
-    s.append(tile(720, 340, "db", "db"))
-    s.append(svc(786, 360, "Memory + Identity", "SDK · history + facts · secret"))
-    s.append(tile(720, 500, "network", "gateway"))
-    s.append(svc(786, 520, "MCP Gateway", "policy · outbound auth"))
-    s.append(tile(720, 650, "db", "chart"))
-    s.append(svc(786, 670, "stock-mcp", "MCP · Cloud · API key inbound"))
+    s.append(dashed_box(700, 305, 420, 475, "AgentBase Platform — managed"))
+    platform_column(s)
 
-    # Internet + tavily
-    s.append(dashed_box(1180, 120, 320, 220, "Internet"))
-    s.append(tile(1250, 200, "store", "globe"))
-    s.append(svc(1316, 220, "MCP · Internet", "Tavily (SaaS) — APIKEY"))
+    # Internet (cùng hàng LLM)
+    s.append(dashed_box(1180, 305, 320, 155, "Internet"))
+    s.append(tile(1240, 405, "store", "globe"))
+    s.append(svc(1306, 420, "MCP · Internet", "Tavily (SaaS) — APIKEY"))
 
-    # On-prem
-    s.append(navy_panel(1180, 560, 320, 300, "Corporate Data Center", "On-Premise KH — mạng riêng"))
-    s.append(tile(1250, 650, "dark", "db_white"))
-    s.append(svc(1316, 670, "MCP On-Premise", "ERP · DB · legacy", "#FFFFFF", "#D5DBDB"))
-    s.append(ttext(1196, 830, "không expose Internet · CIDR riêng", 9.5, 400, "#D5DBDB", italic=True))
+    # VPN tile (cùng hàng Gateway) + on-prem panel
+    s.append(tile(1180, 581, "network", "vpn"))
+    s.append(navy_panel(1180, 700, 320, 240, "Corporate Data Center", "On-Premise KH — mạng riêng"))
+    s.append(tile(1250, 765, "dark", "db_white"))
+    s.append(svc(1316, 785, "MCP On-Premise", "ERP · DB · legacy", "#FFFFFF", "#D5DBDB"))
+    s.append(ttext(1196, 918, "không expose Internet · CIDR riêng", 9.5, 400, "#D5DBDB", italic=True))
 
-    # VPN/DX giữa cloud và on-prem
-    s.append(tile(1040, 640, "network", "vpn"))
-    s.append(ttext(1066, 716, "Direct Connect · Site-to-Site VPN", 9.5, 600, SLATE, "middle", halo=True))
-
-    # Arrows
-    s.append(arrow([(170, 240), (400, 296)], "emphasis", "HTTPS · public URL", 280, 256))
-    s.append(arrow([(620, 288), (720, 226)], "default", "chat completions · API key", 660, 250))
-    s.append(arrow([(620, 302), (720, 366)], "default", "SDK · history + facts", 660, 350))
-    s.append(arrow([(620, 316), (720, 526)], "emphasis", "tools/call · IAM", 606, 420))
-    s.append(arrow([(620, 570), (720, 532)], "emphasis", "egress duy nhất", 676, 566))
-    s.append(arrow([(772, 515), (1250, 240)], "default", "egress Internet · APIKEY", 1010, 372))
-    s.append(arrow([(746, 552), (746, 650)], "default", None))
-    s.append(ttext(760, 606, "API key", 9.8, 600, SLATE, halo=True))
-    s.append(arrow([(772, 526), (1040, 660)], "security-ish" if False else "default", "route CIDRs", 880, 606))
-    s.append(arrow([(1092, 654), (1180, 662)], "orange", None))
-    s.append(arrow([(1092, 678), (1180, 690)], "red", None, dash=True))
+    # ── arrows (orthogonal, cùng lưới hàng) ──
+    s.append(arrow([(205, ROW_LLM), (350, ROW_LLM)], "emphasis", "HTTPS · public URL", 262, 419))
+    s.append(arrow([(575, 425), (740, 425)], "default", "chat completions · API key", 655, 413))
+    s.append(arrow([(575, 437), (676, 437), (676, ROW_MEM), (740, ROW_MEM)], "default", "SDK · history + facts", 706, 507))
+    s.append(arrow([(575, 449), (694, 449), (694, ROW_GW), (740, ROW_GW)], "emphasis", "tools/call · IAM", 706, 595))
+    # runtime VPC → gateway (thẳng hàng ngang, vào mép trái dưới)
+    s.append(arrow([(560, 631), (740, 631)], "emphasis", "egress duy nhất", 648, 649))
+    # gateway → stock (dọc)
+    s.append(arrow([(766, ROW_GW + 26), (766, ROW_STOCK - 26)], "default"))
+    s.append(ttext(780, 661, "API key", 9.8, 600, SLATE, halo=True))
+    # gateway → tavily (lên 1 cấp qua hành lang x=1010)
+    s.append(arrow([(950, 601), (1010, 601), (1010, ROW_LLM), (1240, ROW_LLM)], "default", "egress Internet · APIKEY", 1108, 419))
+    # gateway → VPN (ngang thẳng)
+    s.append(arrow([(950, 613), (1180, 613)], "default", "route CIDRs", 1060, 601))
+    # VPN → on-prem: 2 line song song
+    s.append(arrow([(1194, 633), (1194, 700)], "orange"))
+    s.append(arrow([(1220, 633), (1220, 700)], "red", dash=True))
+    s.append(ttext(1234, 658, "Direct Connect / Interconnect", 9.5, 600, SLATE))
+    s.append(ttext(1234, 676, "Site-to-Site VPN", 9.5, 600, SLATE))
 
     s.append('</svg>')
     return "".join(s)
 
-
-# ═══════════════════════════ 2. UC1 PUBLIC ═══════════════════════════════════
 def build_uc1() -> str:
-    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="760" viewBox="0 0 1440 760" font-family="Segoe UI,Helvetica,Arial,sans-serif">', defs()]
+    W, HGT = 1560, 820
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{HGT}" viewBox="0 0 {W} {HGT}" font-family="Segoe UI,Helvetica,Arial,sans-serif">', defs()]
 
-    s.append(person(100, 230)); s.append(person(135, 224)); s.append(person(170, 230))
-    s.append(ttext(135, 272, "Users", 12, 700, anchor="middle"))
-    s.append(ttext(135, 288, "browser · webhook · A2A", 9.5, 400, SLATE, "middle"))
+    s.append(users_group())
+    s.append(dashed_box(250, 240, 870, 535, "GreenNode Cloud — vNG Cloud (vServer)"))
+    s.append(dashed_box(290, 305, 350, 470, "VPC của KH"))
+    s.append(subnet(310, 360, 310, 300, "Public subnet"))
+    s.append(tile(350, 405, "compute", "compute"))
+    s.append(svc(416, 420, "AgentBase Runtime", "PUBLIC mode"))
+    s.append(ttext(416, 452, "public URL · IAM / API-key", 9.5, 400, SLATE))
+    s.append(ttext(465, 630, "demo live: travel-buddy · zalo-bot · agent-c-multi", 9.5, 400, SLATE, "middle", italic=True))
 
-    s.append(dashed_box(240, 60, 840, 640, "GreenNode Cloud — vNG Cloud (vServer)"))
-    s.append(dashed_box(280, 120, 320, 520, "VPC của KH"))
-    s.append(subnet(300, 170, 290, 420, "Public subnet"))
-    s.append(tile(380, 290, "compute", "compute"))
-    s.append(svc(446, 308, "AgentBase Runtime", "PUBLIC mode"))
-    s.append(ttext(446, 340, "public URL · IAM / API-key", 9.5, 400, SLATE))
-    s.append(ttext(445, 565, "demo live: travel-buddy · zalo-bot · agent-c-multi", 9.5, 400, SLATE, "middle", italic=True))
+    s.append(dashed_box(700, 305, 420, 475, "AgentBase Platform — managed"))
+    platform_column(s)
 
-    s.append(dashed_box(640, 120, 420, 520, "AgentBase Platform — managed"))
-    s.append(tile(760, 190, "ml", "ai"))
-    s.append(svc(826, 210, "LLM AIP", "GLM · OpenAI-compat · API key"))
-    s.append(tile(760, 300, "db", "db"))
-    s.append(svc(826, 320, "Memory + Identity", "SDK · history + facts"))
-    s.append(tile(760, 430, "network", "gateway"))
-    s.append(svc(826, 450, "MCP Gateway", "policy · outbound auth · egress point"))
-    s.append(tile(760, 560, "db", "chart"))
-    s.append(svc(826, 580, "stock-mcp", "MCP · Cloud · API key inbound"))
+    s.append(dashed_box(1180, 305, 320, 155, "Internet"))
+    s.append(tile(1240, 405, "store", "globe"))
+    s.append(svc(1306, 420, "MCP · Internet", "Tavily (SaaS) — APIKEY"))
 
-    s.append(dashed_box(1100, 120, 300, 220, "Internet"))
-    s.append(tile(1180, 200, "store", "globe"))
-    s.append(svc(1246, 220, "MCP · Internet", "Tavily (SaaS) — APIKEY"))
-
-    s.append(arrow([(160, 220), (380, 310)], "emphasis", "HTTPS · public URL", 262, 260))
-    s.append(arrow([(600, 296), (760, 224)], "default", "chat completions · API key", 648, 248))
-    s.append(arrow([(600, 318), (760, 326)], "default", "SDK · history + facts", 648, 352))
-    s.append(arrow([(406, 342), (760, 466)], "emphasis", "tools/call · IAM", 600, 442))
-    s.append(arrow([(812, 440), (1180, 240)], "default", "egress Internet · APIKEY", 1000, 316))
-    s.append(arrow([(786, 482), (786, 560)], "default", "API key", 806, 528, anchor="start"))
+    s.append(arrow([(205, ROW_LLM), (350, ROW_LLM)], "emphasis", "HTTPS · public URL", 262, 419))
+    s.append(arrow([(575, 425), (740, 425)], "default", "chat completions · API key", 655, 413))
+    s.append(arrow([(575, 437), (676, 437), (676, ROW_MEM), (740, ROW_MEM)], "default", "SDK · history + facts", 706, 507))
+    s.append(arrow([(575, 449), (694, 449), (694, ROW_GW), (740, ROW_GW)], "emphasis", "tools/call · IAM", 706, 595))
+    s.append(arrow([(766, ROW_GW + 26), (766, ROW_STOCK - 26)], "default"))
+    s.append(ttext(780, 661, "API key", 9.8, 600, SLATE, halo=True))
+    s.append(arrow([(950, 601), (1010, 601), (1010, ROW_LLM), (1240, ROW_LLM)], "default", "egress Internet · APIKEY", 1108, 419))
 
     s.append('</svg>')
     return "".join(s)
 
-
-# ═════════════════ 3. UC2 PRIVATE + ON-PREM ══════════════════════════════════
 def build_uc2() -> str:
-    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="1520" height="1000" viewBox="0 0 1520 1000" font-family="Segoe UI,Helvetica,Arial,sans-serif">', defs()]
+    W, HGT = 1560, 990
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{HGT}" viewBox="0 0 {W} {HGT}" font-family="Segoe UI,Helvetica,Arial,sans-serif">', defs()]
 
-    s.append(dashed_box(240, 60, 860, 900, "GreenNode Cloud — vNG Cloud (vServer)"))
-    s.append(dashed_box(280, 120, 350, 800, "VPC của KH — private (không public URL)"))
-    s.append(subnet(300, 170, 310, 420, "Private subnet", private=True))
-    s.append(tile(350, 250, "db", "chart"))
-    s.append(svc(416, 268, "Internal app", "trong VPC KH"))
-    s.append(tile(420, 380, "compute", "compute"))
-    s.append(svc(486, 398, "AgentBase Runtime", "VPC mode · no egress"))
-    s.append(ttext(446, 460, "✗ Không egress Internet", 10.5, 700, RED, "middle"))
+    s.append(dashed_box(250, 240, 870, 700, "GreenNode Cloud — vNG Cloud (vServer)"))
+    s.append(dashed_box(290, 305, 370, 610, "VPC của KH — private (không public URL)"))
+    s.append(subnet(310, 360, 330, 420, "Private subnet", private=True))
+    s.append(tile(350, 405, "db", "chart"))
+    s.append(svc(416, 420, "Internal app", "trong VPC KH"))
+    s.append(tile(350, 520, "compute", "compute"))
+    s.append(svc(416, 535, "AgentBase Runtime", "VPC mode · no egress"))
+    s.append(ttext(475, 745, "✗ Không egress Internet", 10.5, 700, RED, "middle"))
 
-    s.append(route_card(300, 640, 310, 150, "VPC route table", [
+    s.append(route_card(310, 800, 330, 110, "VPC route table", [
         "local  → trong VPC",
         "platform services → platform network",
         "10.60.0.0/16 → VGW (VPN / DX)",
         "= routeCidrs của runtime / gateway"]))
 
-    s.append(dashed_box(670, 120, 400, 620, "AgentBase Platform — managed"))
-    s.append(tile(790, 190, "ml", "ai"))
-    s.append(svc(856, 210, "LLM AIP", "GLM · platform network"))
-    s.append(tile(790, 300, "db", "db"))
-    s.append(svc(856, 320, "Memory + Identity", "SDK · platform network"))
-    s.append(tile(790, 440, "network", "gateway"))
-    s.append(svc(856, 460, "MCP Gateway", "policy · egress duy nhất"))
+    s.append(dashed_box(700, 305, 420, 475, "AgentBase Platform — managed"))
+    platform_column(s, llm_sub="GLM · platform network", mem_sub="SDK · platform network",
+                    gw_sub="policy · egress duy nhất", with_stock=False)
 
-    # no internet
-    s.append(ttext(1150, 165, "Internet", 10, 600, SLATE))
-    s.append(crossed(1150, 180, 1340, 180, 1245, 180))
-    s.append(ttext(1245, 214, "No Internet egress", 10.5, 700, RED, "middle"))
+    s.append(ttext(1160, 330, "Internet", 10, 600, SLATE))
+    s.append(crossed(1160, 345, 1345, 345, 1252, 345))
+    s.append(ttext(1252, 379, "No Internet egress", 10.5, 700, RED, "middle"))
 
-    s.append(navy_panel(1130, 560, 350, 280, "Corporate Data Center", "On-Premise KH — mạng riêng"))
-    s.append(tile(1190, 650, "dark", "db_white"))
-    s.append(svc(1256, 670, "MCP On-Premise", "ERP · DB · legacy", "#FFFFFF", "#D5DBDB"))
-    s.append(ttext(1146, 812, "chỉ nhận traffic từ VPC · không expose Internet", 9.5, 400, "#D5DBDB", italic=True))
+    s.append(tile(1180, 581, "network", "vpn"))
+    s.append(navy_panel(1180, 700, 320, 240, "Corporate Data Center", "On-Premise KH — mạng riêng"))
+    s.append(tile(1250, 765, "dark", "db_white"))
+    s.append(svc(1316, 785, "MCP On-Premise", "ERP · DB · legacy", "#FFFFFF", "#D5DBDB"))
+    s.append(ttext(1196, 918, "chỉ nhận traffic từ VPC · không expose Internet", 9.5, 400, "#D5DBDB", italic=True))
 
-    s.append(tile(1000, 600, "network", "vpn"))
-    s.append(ttext(1026, 676, "Direct Connect · Site-to-Site VPN", 9.5, 600, SLATE, "middle", halo=True))
-
-    s.append(arrow([(402, 288), (420, 380)], "emphasis", "nội bộ VPC", 352, 344))
-    s.append(arrow([(600, 396), (790, 224)], "default", "platform network", 664, 300))
-    s.append(arrow([(600, 412), (790, 326)], "default", "platform network", 676, 400))
-    s.append(arrow([(456, 432), (790, 466)], "emphasis", "tools/call · IAM — egress duy nhất", 612, 486))
-    s.append(arrow([(842, 466), (1000, 620)], "default", "route CIDRs", 922, 544))
-    s.append(arrow([(1052, 614), (1130, 636)], "orange", None))
-    s.append(arrow([(1052, 638), (1130, 662)], "red", None, dash=True))
+    # ── arrows (orthogonal) ──
+    s.append(arrow([(376, 457), (376, 520)], "emphasis", "nội bộ VPC", 392, 492, anchor="start"))
+    s.append(arrow([(560, 540), (660, 540), (660, ROW_LLM), (740, ROW_LLM)], "default", "platform network", 700, 419))
+    s.append(arrow([(560, 552), (676, 552), (676, ROW_MEM), (740, ROW_MEM)], "default", "platform network", 706, 507))
+    s.append(arrow([(560, 564), (690, 564), (690, ROW_GW - 8), (740, ROW_GW - 8)], "emphasis", "tools/call · IAM — egress duy nhất", 620, 585))
+    # gateway → VPN (ngang thẳng)
+    s.append(arrow([(950, 613), (1180, 613)], "default", "route CIDRs", 1060, 601))
+    s.append(arrow([(1194, 633), (1194, 700)], "orange"))
+    s.append(arrow([(1220, 633), (1220, 700)], "red", dash=True))
+    s.append(ttext(1234, 658, "Direct Connect / Interconnect", 9.5, 600, SLATE))
+    s.append(ttext(1234, 676, "Site-to-Site VPN", 9.5, 600, SLATE))
 
     s.append('</svg>')
     return "".join(s)
 
-
 JOBS = [
     ("agentbase-network-map", "AgentBase Runtime — Network Map",
-     "1 block AgentBase Runtime · đặt ở public subnet hoặc VPC của KH (vServer) · break ra LLM AIP / Memory + Identity / MCP Gateway · 3 nhóm MCP: Internet · Cloud · On-Premise (VPN/Interconnect)", build_master),
+     "1 block AgentBase Runtime · đặt ở public subnet hoặc VPC của KH · break ra LLM AIP / Memory + Identity / MCP Gateway · 3 nhóm MCP: Internet · Cloud · On-Premise (VPN/Interconnect)", build_master),
     ("usecase-public-cloud", "Use case 1 — Agent PUBLIC mode",
      "Runtime ở public subnet · LLM + Memory + Gateway · tools: MCP Internet (Tavily) + MCP Cloud (stock-mcp) — demo live", build_uc1),
     ("usecase-private-onprem", "Use case 2 — Agent PRIVATE (VPC mode) · MCP On-Premise",
-     "Không dùng Tavily/Internet: runtime private subnet · egress duy nhất là gateway · route CIDRs qua Direct Connect / Site-to-Site VPN sang MCP on-premise", build_uc2),
+     "Không dùng Tavily/Internet: runtime ở private subnet · egress duy nhất là gateway · route CIDRs qua Direct Connect / Site-to-Site VPN sang MCP on-premise", build_uc2),
 ]
 
 for fname, title, subtitle, fn in JOBS:
     svg = fn()
     w = int(svg.split('width="')[1].split('"')[0])
-    (DOC / f"{fname}.html").write_text(shell(title, subtitle, svg, w, 0, LEGEND, fname), encoding="utf-8")
+    (DOC / f"{fname}.html").write_text(shell(title, subtitle, svg, w, LEGEND, fname), encoding="utf-8")
     print("✓", f"{fname}.html")
