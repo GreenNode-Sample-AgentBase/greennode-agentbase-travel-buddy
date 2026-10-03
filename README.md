@@ -1,13 +1,13 @@
-# 🧭 Travel Buddy — A Travel Assistant with Memory
+# Travel Buddy — A Travel Assistant with Memory
 
 [![CI](https://github.com/GreenNode-Samples/sample-travel-buddy/actions/workflows/ci.yml/badge.svg)](https://github.com/GreenNode-Samples/sample-travel-buddy/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > An **end-to-end** sample on **GreenNode AgentBase**: Agent Runtime (LangGraph) + **Memory** (2 strategies) + **MCP Governance** (MCP Gateway + Policy Group) + **LLM AIP**. Runs locally out of the box **and** deploys straight to your own AgentBase account.
 
-📚 [Interactive architecture diagram](docs/architecture.html) · 🇻🇳 Hướng dẫn tiếng Việt xem trong lịch sử repo
+[Interactive architecture diagram](docs/architecture.html) · The Vietnamese-language guide is available in the repo history.
 
-## 🔗 Live demo (public endpoints)
+## Live demo (public endpoints)
 
 | What | URL |
 |---|---|
@@ -19,43 +19,43 @@
 
 ---
 
-## ✨ The experience — the agent *remembers* you
+## The experience — the agent *remembers* you
 
 | You say (user `alice`, session 1) | What the agent does (automatically) |
 |---|---|
-| "I love the beach, I'm vegetarian, budget ~5M VND, going to Da Nang in June" | 🔍 Tavily search through the **MCP Gateway** → itinerary + weather • 🧠 `remember` → stores your preferences • the Memory engine auto-extracts records (CUSTOM + SEMANTIC) |
-| Return in a **different session** (days later): "Where should I go next?" | ✨ The UI shows an "**Agent just recalled**" callout • the reply matches your earlier preferences — **no need to repeat yourself** |
+| "I love the beach, I'm vegetarian, budget ~5M VND, going to Da Nang in June" | Tavily search through the **MCP Gateway** → itinerary + weather • `remember` → stores your preferences • the Memory engine auto-extracts records (CUSTOM + SEMANTIC) |
+| Return in a **different session** (days later): "Where should I go next?" | The UI shows an "**Agent just recalled**" callout • the reply matches your earlier preferences — **no need to repeat yourself** |
 
-The 3-column dark UI: **Users/Sessions** · **Chat** (markdown + ✨ memory callout, **token-by-token streaming**) · **Memory** (records grouped per strategy, auto-refresh).
+The 3-column dark UI: **Users/Sessions** · **Chat** (markdown + memory callout, **token-by-token streaming**) · **Memory** (records grouped per strategy, auto-refresh).
 
-## 🏗 Architecture
+## Architecture
 
-![Kiến trúc travel-buddy](docs/architecture.svg)
+![Travel Buddy architecture](docs/architecture.svg)
 
-> MCP flow: **Agent → MCP Gateway (Inbound Auth) → Policy Group → MCP Connector (Outbound Auth) → MCP server**. LLM calls are a **separate path** (direct to LLM AIP here; on AgentBase Runtime they can also go through the *Sidecar LLM Proxy* — see [LLM endpoint](#-llm-endpoint-optional-sidecar-llm-proxy)).
+> MCP flow: **Agent → MCP Gateway (Inbound Auth) → Policy Group → MCP Connector (Outbound Auth) → MCP server**. LLM calls are a **separate path** (direct to LLM AIP here; on AgentBase Runtime they can also go through the *Sidecar LLM Proxy* — see [LLM endpoint](#llm-endpoint-optional-sidecar-llm-proxy)).
 
 - **Runtime** — `src/backend`: the `GreenNodeAgentBaseApp` SDK, agent = `create_agent` + MCP tools + 2 memory tools; the `X-GreenNode-AgentBase-User-Id` (→ memory `actorId`) / `-Session-Id` (→ `thread_id`) headers partition memory per user. **Both are required on every memory path** — missing → `400` (no default user/session, to avoid mixing data between users).
 - **Memory** — one memory, 2 long-term strategies: `user-preferences` (**CUSTOM**, dedicated extraction prompt) + `trip-facts` (**SEMANTIC**). Checkpointer `AgentBaseMemoryEvents` stores conversations; namespace `/strategies/<id>/actors/<userId>`.
 - **MCP Gateway** (module **MCP Governance**) — `sample-mcp-gw`, **Inbound Auth = IAM Permissions** (alternatives: JWT (default) / No authorization), `tavily` **MCP Connector** (endpoint URL + **Outbound Auth = API Key 2LO**). **Policy Group** `sample-gw-policy` (first match wins): only travel-buddy may call the 5 Tavily actions — a `tools/call` matching no rule gets **403** (verified: unknown token → "Request denied by policy."). Note: with **no** Policy Group attached, *every* `tools/call` is 403; `tools/list` bypasses policy.
 - **Frontend** — `src/frontend`: vanilla SPA, served by the backend at `GET /` (same-origin, no CORS).
 
-## 🌐 Network — Runtime, vCR, MCP Gateway & connectors
+## Network — Runtime, vCR, MCP Gateway & connectors
 
 ![AgentBase connectivity map](docs/network/01-connectivity-map.svg)
 
-- **Agent Runtime** và **MCP Gateway** chạy trong **AgentBase VPC** (`172.30.0.0/16`, GreenNode quản lý) — không nằm trong VPC của KH. Mode **Public** đi qua public endpoint; mode **Private** nối private sang VPC của KH (chọn VPC + Subnet + Route CIDRs). Image pull từ **Container Registry (vCR)** hoặc public registry nếu KH đồng ý.
-- **LLM, Memory, Access Control**: platform service của GreenNode — LLM qua Sidecar LLM Proxy, Memory / Access Control qua SDK với IAM service account do runtime tự inject.
-- **MCP Gateway** = Inbound Auth (IAM Permissions / JWT) → Policy Group → **MCP Connector** (URL + Outbound Auth). Gateway **Public** gọi MCP trên Internet / MCP chạy trên Agent Runtime; gateway **Private** gọi MCP trong VPC của KH và on-premise (VPC của KH → VPN / Interconnect).
+- **Agent Runtime** and **MCP Gateway** run in the **AgentBase VPC** (`172.30.0.0/16`, managed by GreenNode) — not in your VPC. **Public** mode goes through a public endpoint; **Private** mode connects privately to your VPC (select VPC + Subnet + Route CIDRs). Images are pulled from **Container Registry (vCR)**, or from a public registry if you agree to that.
+- **LLM, Memory, Access Control** are GreenNode platform services. The LLM is an OpenAI-compatible endpoint: this sample calls it directly via `LLM_BASE_URL`, and on Agent Runtime you can route it through the Sidecar LLM Proxy instead (see [LLM endpoint](#llm-endpoint-optional-sidecar-llm-proxy)). Memory and Access Control are reached through the SDK using an IAM service account that the runtime injects automatically.
+- **MCP Gateway** = Inbound Auth (IAM Permissions / JWT) → Policy Group → **MCP Connector** (URL + Outbound Auth). A **Public** gateway calls MCP servers on the Internet or MCP servers running on Agent Runtime; a **Private** gateway calls MCP servers in your VPC and on-premises (your VPC → VPN / Interconnect).
 
-Chi tiết từng use case (agent **không dùng Tavily**: MCP trong VPC cloud, MCP on-premise) và cách thông mạng on-prem ↔ VPC: **[docs/network/README.md](docs/network/README.md)**.
+Details for each use case (agents that **do not use Tavily**: MCP in a cloud VPC, MCP on-premises) and how to connect on-premises to your VPC: **[docs/network/README.md](docs/network/README.md)**.
 
-| | Demo này | UC A · MCP trong VPC cloud | UC B · MCP on-premise |
+| | This demo | UC A · MCP in a cloud VPC | UC B · MCP on-premises |
 |---|---|---|---|
-| Runtime | Public · image trên vCR | Private (app nội bộ gọi) | Public hoặc Private |
-| MCP Gateway | Public | Private | Private + Route CIDRs on-prem |
-| Connectors → MCP | `tavily` → Internet | `crm`, `inventory` → vServer / VKS | `erp`, `hr` → DC qua VPN / Interconnect |
+| Runtime | Public · image on vCR | Private (called by an internal app) | Public or Private |
+| MCP Gateway | Public | Private | Private + on-premises Route CIDRs |
+| Connectors → MCP | `tavily` → Internet | `crm`, `inventory` → vServer / VKS | `erp`, `hr` → data center via VPN / Interconnect |
 
-## 📁 Layout
+## Layout
 
 ```
 ├── src/backend/          # main.py (routes) · agent.py (LangGraph) · memory_tools.py · mcp_client.py
@@ -66,7 +66,7 @@ Chi tiết từng use case (agent **không dùng Tavily**: MCP trong VPC cloud, 
 ├── Dockerfile · .env.example · requirements.txt
 ```
 
-## 🚀 Run locally
+## Run locally
 
 ```bash
 cp .env.example .env       # fill values — see the Env reference below
@@ -74,14 +74,14 @@ docker build -t travel-buddy . && docker run -p 8080:8080 --env-file .env travel
 # open http://localhost:8080
 ```
 
-## ☁️ Deploy to GreenNode AgentBase — via the Portal (UI)
+## Deploy to GreenNode AgentBase — via the Portal (UI)
 
 Portal: **https://aiplatform.console.vngcloud.vn** → *AI Platform / AgentBase*. Menu names may differ slightly per console version; each step also lists the equivalent API.
 
 ### Step 1 — LLM API key (LLM AIP / Model Access)
 1. Portal → **LLM / Model Access** (or *API Keys*) → **Create API Key** → copy the `lap-…` key.
 2. API: `POST /llm/api/v1/api-keys` (see `GET /llm/api/v1/models` to pick a model, e.g. `z-ai/glm-5.3-flash`).
-3. The code calls the LLM at `LLM_BASE_URL` (default: LLM AIP). See [LLM endpoint](#-llm-endpoint-optional-sidecar-llm-proxy) if you want to use the Sidecar LLM Proxy on the Runtime.
+3. The code calls the LLM at `LLM_BASE_URL` (default: LLM AIP). See [LLM endpoint](#llm-endpoint-optional-sidecar-llm-proxy) if you want to use the Sidecar LLM Proxy on the Runtime.
 
 ### Step 2 — Create Memory
 1. Portal → **Memory** → **Create Memory** → name it `travel-buddy-memory`.
@@ -117,28 +117,28 @@ Portal: **https://aiplatform.console.vngcloud.vn** → *AI Platform / AgentBase*
 4. Open the **endpoint URL** → the chat UI appears immediately (`GET /`).
 5. CLI alternative: `runtime.sh create --name travel-buddy --image … --flavor runtime-s2-general-2x4 --from-cr --env-file .env.deploy`.
 
-## 🔧 Env reference
+## Env reference
 
 | Variable | Required | Meaning |
 |---|---|---|
-| `LLM_API_KEY` | ✅ | LLM AIP key (`lap-…`) |
+| `LLM_API_KEY` | Yes | LLM AIP key (`lap-…`) |
 | `LLM_BASE_URL` | optional | OpenAI-compatible endpoint, default LLM AIP `https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1`. On AgentBase Runtime may point to the Sidecar LLM Proxy `http://localhost:18080` (verify with GreenNode) |
-| `LLM_MODEL` | ✅ | e.g. `z-ai/glm-5.3-flash` |
-| `AGENTBASE_MEMORY_ID` | ✅ | `memory-…` created in Step 2 |
-| `MEMORY_STRATEGY_PREF_ID` | ✅ | the `user-preferences` strategy (CUSTOM) |
-| `MEMORY_STRATEGY_FACTS_ID` | ✅ | the `trip-facts` strategy (SEMANTIC) |
-| `MCP_TAVILY_URL` | ✅ | `<gateway-url>/tavily` |
+| `LLM_MODEL` | Yes | e.g. `z-ai/glm-5.3-flash` |
+| `AGENTBASE_MEMORY_ID` | Yes | `memory-…` created in Step 2 |
+| `MEMORY_STRATEGY_PREF_ID` | Yes | the `user-preferences` strategy (CUSTOM) |
+| `MEMORY_STRATEGY_FACTS_ID` | Yes | the `trip-facts` strategy (SEMANTIC) |
+| `MCP_TAVILY_URL` | Yes | `<gateway-url>/tavily` |
 | `GREENNODE_CLIENT_ID/SECRET` | local only | only for local runs (the runtime auto-injects them, plus `GREENNODE_AGENT_IDENTITY`) |
 | `AGENT_API_KEY` | optional | if set, `/invocations` + `/api/*` require the `X-API-Key` header (stops strangers burning your LLM credits). **Leave it unset for a frictionless demo** — the bundled UI never asks for a key |
 | `DEBUG_OPS` | default `0` | `1` enables the `{"op":"whoami"}` identity op — only while setting up policies |
 
-## 🔀 LLM endpoint (optional: Sidecar LLM Proxy)
+## LLM endpoint (optional: Sidecar LLM Proxy)
 
 By default the agent calls the LLM directly: `ChatOpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)` with `LLM_BASE_URL=https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1`. This sample does **not** change that default.
 
-Per the AgentBase docs, LLM calls on a Runtime go through a **Sidecar LLM Proxy** that is auto-injected when the agent is created (endpoint `localhost:18080` in the agent config) — a path **separate from the MCP Gateway**. To try it on a Runtime, set `LLM_BASE_URL=http://localhost:18080`. ⚠️ *Verify with GreenNode for your runtime version* (auth requirements and model names are not covered here) before relying on it.
+Per the AgentBase docs, LLM calls on a Runtime go through a **Sidecar LLM Proxy** that is auto-injected when the agent is created (endpoint `localhost:18080` in the agent config) — a path **separate from the MCP Gateway**. To try it on a Runtime, set `LLM_BASE_URL=http://localhost:18080`. *Verify with GreenNode for your runtime version* (auth requirements and model names are not covered here) before relying on it.
 
-## 🔌 API contract (exposed by the backend)
+## API contract (exposed by the backend)
 
 | Method | Path | Description |
 |---|---|---|
@@ -150,7 +150,7 @@ Per the AgentBase docs, LLM calls on a Runtime go through a **Sidecar LLM Proxy*
 | GET | `/api/info` · `/health` | config · health |
 | GET | `/ready` | deep readiness: memory + gateway + LLM (200 ok / 503 degraded) |
 
-## ✅ Verified end-to-end (demo account)
+## Verified end-to-end (demo account)
 
 - Gateway `sample-mcp-gw` + `tavily` connector ACTIVE · Policy Group denies unmatched calls (403) (unknown token → *"Request denied by policy."*)
 - Two users (`alice` — beach/vegetarian/5M; `ba` — mountain/street food/4M) → two different plans, the memory panel shows records per strategy.
@@ -162,36 +162,36 @@ Per the AgentBase docs, LLM calls on a Runtime go through a **Sidecar LLM Proxy*
     -d '{"message":"I love the beach, I am vegetarian, budget 5M VND, going to Da Nang in June"}'
   ```
 
-## 🤝 A2A protocol (agent-to-agent)
+## A2A protocol (agent-to-agent)
 
-Agent này là một **A2A server** — agent khác discovery và gọi nó theo chuẩn A2A (không cần SDK riêng):
+This agent is an **A2A server** — other agents can discover and call it using the A2A standard (no dedicated SDK required):
 
-| Endpoint | Method | Nội dung |
+| Endpoint | Method | Description |
 |---|---|---|
-| `/.well-known/agent-card.json` | GET | Agent card: name, skills (`travel-planning`, `personalization`), capabilities (streaming ✔), URL |
-| `/a2a` | POST | JSON-RPC 2.0 `message/send` → trả `Message` chuẩn A2A (contextId + parts text) |
+| `/.well-known/agent-card.json` | GET | Agent card: name, skills (`travel-planning`, `personalization`), capabilities (streaming: yes), URL |
+| `/a2a` | POST | JSON-RPC 2.0 `message/send` → returns a standard A2A `Message` (contextId + text parts) |
 | `/a2a` | POST | `message/stream` → SSE: status-update working → artifact-update (token) → completed |
 
-- Endpoint A2A **mở** (không qua `X-API-Key`) — đó là điểm thiết kế cho agent discovery.
-- `POST /a2a` **bắt buộc** header `X-GreenNode-AgentBase-User-Id` (→ memory `actorId`; thiếu → 400, không còn actor mặc định dùng chung). Qua AgentBase Runtime header này được gắn sẵn; gọi trực tiếp thì tự gửi (`-H 'X-GreenNode-AgentBase-User-Id: alice'`).
-- `contextId` của A2A map thẳng vào `thread_id` (thiếu `contextId` → dùng header `X-GreenNode-AgentBase-Session-Id`, rồi mới tới id sinh mới) → cuộc trò chuyện A2A **có memory** như chat thường.
-- Test nhanh:
+- The A2A endpoint is **open** (it does not require `X-API-Key`) — this is a deliberate design choice to allow agent discovery.
+- `POST /a2a` **requires** the `X-GreenNode-AgentBase-User-Id` header (→ memory `actorId`; missing → 400, there is no shared default actor). Through AgentBase Runtime this header is attached automatically; when calling directly, send it yourself (`-H 'X-GreenNode-AgentBase-User-Id: alice'`).
+- The A2A `contextId` maps directly to `thread_id` (if `contextId` is missing, the `X-GreenNode-AgentBase-Session-Id` header is used, and only then a newly generated id), so A2A conversations **have memory** just like regular chat.
+- Quick test (the sample message is Vietnamese: "Which area should I stay in for a 3-day trip to Da Lat?"):
   ```bash
   curl -s $ENDPOINT/.well-known/agent-card.json | jq '.name, .skills[].id'
   curl -s -X POST $ENDPOINT/a2a -H 'Content-Type: application/json' -H 'X-GreenNode-AgentBase-User-Id: alice' -d \
     '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"kind":"message","messageId":"m1","role":"user","parts":[{"kind":"text","text":"Đi Đà Lạt 3 ngày nên ở khu nào?"}]}}}' | jq -r '.result.parts[0].text'
   ```
-- Unit tests: `tests/test_a2a.py` (card shape, trích text từ parts, envelope JSON-RPC).
+- Unit tests: `tests/test_a2a.py` (card shape, text extraction from parts, JSON-RPC envelope).
 
-## 📊 Observability — LangFuse v4 (OTel SDK)
+## Observability — LangFuse v4 (OTel SDK)
 
-Mọi turn (chat + A2A + stream) đều được trace bằng **LangFuse SDK v4** (`langfuse>=4.0,<5`):
+Every turn (chat + A2A + stream) is traced with the **LangFuse SDK v4** (`langfuse>=4.0,<5`):
 
-- Pattern: `_lf_scope()` (`propagate_attributes`) **bao ngoài** turn → trace name / user / session / tags áp cho root **và mọi child observation** (kể cả generation chịu chi phí); `_lf_callback()` (CallbackHandler OTel) tạo **bên trong** scope.
-- Bật chỉ cần 3 env: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`. Thiếu env → tracing tự tắt, agent chạy bình thường (`nullcontext`).
-- Trong UI LangFuse sẽ thấy: model + token usage từng generation, tool calls (`tavily_search`, `recall`), cây LangGraph, session/user/tags để lọc.
+- Pattern: `_lf_scope()` (`propagate_attributes`) **wraps** the turn, so the trace name / user / session / tags apply to the root **and every child observation** (including cost-bearing generations); `_lf_callback()` (the OTel CallbackHandler) is created **inside** that scope.
+- Enable it with just 3 env vars: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`. If any are missing, tracing is disabled automatically and the agent runs normally (`nullcontext`).
+- In the LangFuse UI you will see the model and token usage for each generation, tool calls (`tavily_search`, `recall`), the LangGraph tree, and session/user/tags for filtering.
 
-## 🛡️ Production hardening
+## Production hardening
 
 The sample ships with these guards — flip them on when deploying publicly:
 
@@ -207,7 +207,7 @@ The sample ships with these guards — flip them on when deploying publicly:
 | **Timezone** | "today" in the system prompt uses `Asia/Ho_Chi_Minh`, not container UTC |
 | **Readiness probe** | `GET /ready` checks memory + gateway + LLM — wire it to your monitor |
 
-## 💰 Cost & teardown
+## Cost & teardown
 
 - Runtimes run on the **real wallet** (~1 replica × 2x4). Delete: Portal → Agents → Delete; CLI `runtime.sh delete <runtime-id>`. Full cleanup: the `agentbase-teardown` skill.
 

@@ -327,7 +327,7 @@ GLYPH["registry"] = g_registry
 
 def shared_services(s, x, y, w=490):
     """Khung 'Dịch vụ dùng chung' — LLM / Memory / Identity xếp ngang, label dưới icon."""
-    s.append(group(x, y, w, 130, "Dịch vụ dùng chung · platform API", "shared"))
+    s.append(group(x, y, w, 130, "Shared services · platform API", "shared"))
     step_x = (w - 40) // 3
     for i, (g, col, name, sub) in enumerate([
             ("gn-ai", C["ai"], "LLM — AI Platform", "OpenAI-compatible API"),
@@ -350,17 +350,18 @@ def connector(x, y, name, url, auth, w=320):
 
 CONNECTORS = {
     "tavily": ("https://<Tavily MCP endpoint>", "API Key · 2LO"),
-    "stock": ("endpoint của MCP runtime", "API Key · 2LO"),
+    "stock": ("MCP runtime endpoint", "API Key · 2LO"),
     "crm": ("https://xx.xx.x.x:8443 · VPC", "No authorization"),
     "inventory": ("https://xx.xx.x.x:8443 · VPC", "Inbound forward"),
     "erp": ("https://xx.xx.x.x:8443 · on-prem", "API Key · 2LO"),
     "hr": ("https://xx.xx.x.x:8443 · on-prem", "OAuth · 2LO"),
     "github": ("https://<GitHub MCP endpoint>", "OAuth · 3LO"),
-    "restaurant": ("endpoint của zalo-mcp-server", "No authorization"),
+    "restaurant": ("zalo-mcp-server endpoint", "No authorization"),
+    "erp@onprem": ("https://<onprem-host>:8443/mcp", "API Key · X-Api-Key"),
 }
 
 
-def gateway_block(s, names, network="Network: Private → VPC của KH", x=680, y=236):
+def gateway_block(s, names, network="Network: Private → customer VPC", x=680, y=236):
     """MCP Gateway (Kong OSS, managed): Inbound Auth → Policy Group → MCP Connectors."""
     w, h = 450, 304
     s.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#F8F7FC" stroke="{C["net"]}" stroke-width="1.5"/>')
@@ -368,7 +369,7 @@ def gateway_block(s, names, network="Network: Private → VPC của KH", x=680, 
              + use("mcp-gateway", x + 4, y + 4, 18))
     s.append(text(x + 34, y + 18, "MCP Gateway", 12.5, 700, C["net"]))
     s.append(text(x + w - 10, y + 18, "MCP Connectors", 11, 700, INK, "end"))
-    s.append(node(x + 26, y + 40, "inbound-auth", C["net"], "Inbound Auth", ["IAM Permissions", "JWT (mặc định)"]))
+    s.append(node(x + 26, y + 40, "inbound-auth", C["net"], "Inbound Auth", ["IAM Permissions", "JWT (default)"]))
     s.append(node(x + 26, y + 170, "policy", C["idc"], "Policy Group", ["ALLOW / DENY"]))
     s.append(arrow([(x + 50, y + 138), (x + 50, y + 170)], "req"))
     s.append(text(x + 12, y + h - 10, network, 10.5, 600, C["net"]))
@@ -414,7 +415,7 @@ def gateway_compact(s, x, y, title, names, network):
     for i, n in enumerate(names):
         url, auth = CONNECTORS[n]
         cy = y + 26 + i * 62
-        s.append(connector(x + 170, cy, n, url, auth, w=270))
+        s.append(connector(x + 170, cy, n.split("@")[0], url, auth, w=270))
         mids[n] = cy + 28
     bus = x + 155
     # policy → bus: đi từ đáy ô Policy để không cắt chữ "Policy Group"
@@ -440,12 +441,12 @@ def scene(show, conns, title):
     s = []
     if has("internet"):
         s.append(group(20, 16, W - 40, 94, "Internet", "internet"))
-        s.append(node(90, 40, "registry", C["gray"], "Public registry", ["thay vCR nếu KH đồng ý", "Docker Hub · GHCR …"], "right"))
-        s.append(node(1330, 40, "mcp", C["mcp"], "MCP server trên Internet", ["Tavily · GitHub · Slack …"], "right"))
+        s.append(node(90, 40, "registry", C["gray"], "Public registry", ["alternative to vCR (opt-in)", "Docker Hub · GHCR …"], "right"))
+        s.append(node(1330, 40, "mcp", C["mcp"], "MCP servers on the Internet", ["Tavily · GitHub · Slack …"], "right"))
 
     s.append(group(20, 130, 1320, 1170 + DY, "GreenNode Cloud", "cloud"))
     s.append(group(34, 166, 1292, 1120 + DY, "Region HCM", "region"))
-    s.append(group(50, 200, 1260, 560 + DY, "AgentBase Platform — managed bởi GreenNode", "managed"))
+    s.append(group(50, 200, 1260, 560 + DY, "AgentBase Platform — managed by GreenNode", "managed"))
     s.append(node(90, 250, "gn-cr", C["compute"], "Container Registry", ["vCR"]))
     shared_services(s, 180, 236, 460)
     s.append(abvpc(70, 400, 1220, 350 + DY))
@@ -454,22 +455,22 @@ def scene(show, conns, title):
         mids = gateway_compact(s, 680, 430, "MCP Gateway · Public", [n for n in conns if n in ("tavily", "stock")],
                                "Network: Public")
         mids.update(gateway_compact(s, 680, 636, "MCP Gateway · Private", [n for n in conns if n not in ("tavily", "stock")],
-                                    "Network: Private → VPC của KH"))
+                                    "Network: Private → customer VPC"))
         gw_entries = [488, 694]
     else:
-        mids = gateway_block(s, conns, "Network: Private → VPC của KH", y=420)
+        mids = gateway_block(s, conns, "Network: Private → customer VPC", y=420)
         gw_entries = [484]
     if has("hosted"):
-        s.append(node(1156, mids["stock"] - 24, "mcp", C["mcp"], "MCP server", ["trên Agent Runtime"]))
+        s.append(node(1156, mids["stock"] - 24, "mcp", C["mcp"], "MCP server", ["on Agent Runtime"]))
 
     L = 830 + DY                                   # đỉnh VPC của KH
-    s.append(group(50, L, 1260, 440, "VPC của KH · xx.xx.x.x/xx", "vpc"))
+    s.append(group(50, L, 1260, 440, "Customer VPC · xx.xx.x.x/xx", "vpc"))
     s.append(group(70, L + 40, 450, 150, "Private subnet · app", "private"))
-    s.append(node(300, L + 80, "app", C["app"], "Internal app", ["hệ thống nội bộ của KH"]))
+    s.append(node(300, L + 80, "app", C["app"], "Internal app", ["customer internal system"]))
     rows = [("VPC CIDR", "local"), ("172.30.0.0/16", "→ AgentBase (private)")]
     if has("onprem"):
         rows += [("on-prem CIDR", "→ VPN GW / Interconnect")]
-    s.append(card(70, L + 220, 450, 30 + 17 * len(rows) + 10, "Route table (VPC của KH)", rows))
+    s.append(card(70, L + 220, 450, 30 + 17 * len(rows) + 10, "Route table (customer VPC)", rows))
     if has("vpcmcp"):
         s.append(group(760, L + 40, 330, 270, "Private subnet · MCP", "private"))
         s.append(node(960, L + 100, "mcp", C["mcp"], "mcp-crm", ["vServer"], badge="gn-server"))
@@ -490,7 +491,7 @@ def scene(show, conns, title):
     steps.append((324, 650 + DY // 2))
     s.append(arrow([(114, 345), (114, 388), (412, 388), (412, 520)], "req", "pull image", (240, 380)))
     steps.append((114, 366))
-    s.append(arrow([(436, 520), (436, 370)], "req", ["LLM qua sidecar :18080", "Memory · Access Control"], (446, 440), "start"))
+    s.append(arrow([(436, 520), (436, 370)], "req", ["LLM via sidecar :18080", "Memory · Access Control"], (446, 440), "start"))
     steps.append((436, 500))
     if two_gw:
         s.append(f'<polyline points="448,544 660,544" fill="none" stroke="{INK}" stroke-width="1.6"/>')
@@ -545,18 +546,18 @@ def scene(show, conns, title):
 
 def d1():
     return scene({"internet", "hosted", "vpcmcp", "onprem"}, ["tavily", "stock", "erp", "crm"],
-                 "Bản đồ kết nối AgentBase: Agent Runtime trong AgentBase VPC gọi MCP Gateway Public (MCP Internet, MCP trên "
-                 "Agent Runtime) và MCP Gateway Private (MCP trong VPC của KH, MCP on-premise qua VPN / Interconnect)")
+                 "AgentBase connectivity map: Agent Runtime in the AgentBase VPC calls a Public MCP Gateway (Internet MCP, MCP on "
+                 "Agent Runtime) and a Private MCP Gateway (MCP in the customer VPC, MCP on-premises via VPN / Interconnect)")
 
 
 def d2():
     return scene({"vpcmcp"}, ["inventory", "crm"],
-                 "Use case A: MCP Gateway Private gọi MCP server trong VPC của KH qua connector, không đi Internet")
+                 "Use case A: a Private MCP Gateway calls MCP servers in the customer VPC through connectors, without Internet access")
 
 
 def d3():
     return scene({"onprem"}, ["erp", "hr"],
-                 "Use case B: MCP Gateway Private gọi MCP server on-premise qua VPN hoặc Interconnect")
+                 "Use case B: a Private MCP Gateway calls on-premises MCP servers via VPN or Interconnect")
 
 
 # ═════════════════════════ UC PUBLIC — Agent Runtime PUBLIC mode ═════════════
@@ -570,26 +571,26 @@ def d_public():
     s.append(people(60, 600) + lbl_below(60, 600, "Users / apps", ["browser · webhook", "A2A client"]))
 
     b = []
-    b.append(node(1140, 40, "mcp", C["mcp"], "MCP server trên Internet", ["Tavily · GitHub · Slack …"], "right"))
+    b.append(node(1140, 40, "mcp", C["mcp"], "MCP servers on the Internet", ["Tavily · GitHub · Slack …"], "right"))
     b.append(group(20, 130, 1240, 630, "GreenNode Cloud", "cloud"))
     b.append(group(34, 166, 1212, 580, "Region HCM", "region"))
-    b.append(group(50, 200, 1180, 530, "AgentBase Platform — managed bởi GreenNode", "managed"))
+    b.append(group(50, 200, 1180, 530, "AgentBase Platform — managed by GreenNode", "managed"))
     b.append(node(90, 260, "gn-cr", C["compute"], "Container Registry", ["vCR"]))
     shared_services(b, 180, 236, 460)
     mids = gateway_block(b, ["tavily", "github", "stock"], "Network: Public")
-    b.append(node(1145, 390, "mcp", C["mcp"], "MCP server", ["trên AgentBase Runtime"]))
+    b.append(node(1145, 390, "mcp", C["mcp"], "MCP server", ["on Agent Runtime"]))
     b.append(node(300, 600, "agent-runtime", C["compute"], "AgentBase Runtime", ["PUBLIC mode · sidecar LLM :18080"]))
     b.append(card(700, 580, 430, 130, "PUBLIC mode", [
         ("Runtime endpoint", "public HTTPS (IAM / API key)"),
         ("Gateway network", "Public"),
-        ("VPC / on-prem", "không cần"),
-        ("Phù hợp", "demo, MCP SaaS, tool public"),
+        ("VPC / on-prem", "not required"),
+        ("Best for", "demos, MCP SaaS, public tools"),
     ]))
 
     steps = []
     b.append(arrow([(114, 345), (114, 580), (312, 580), (312, 600)], "req", "pull image", (124, 440), "start"))
     steps.append((114, 500))
-    b.append(arrow([(336, 600), (336, 370)], "req", ["LLM qua sidecar :18080", "Memory · Access Control"], (346, 450), "start"))
+    b.append(arrow([(336, 600), (336, 370)], "req", ["LLM via sidecar :18080", "Memory · Access Control"], (346, 450), "start"))
     steps.append((336, 520))
     b.append(arrow([(348, 624), (660, 624), (660, 300), (706, 300)], "req", ["MCP tools/call", "→ MCP Gateway"], (650, 560), "end"))
     steps.append((660, 600))
@@ -607,8 +608,8 @@ def d_public():
     for i, (cx, cy) in enumerate(steps, 2):
         s.append(f'<g transform="translate({OX} 0)">{step(cx, cy, i)}</g>')
     s.append(legend(30, Hh - 16, [("req", "request / data path")]))
-    return svg(W, Hh, s, "Use case Public: user trên Internet gọi endpoint public của Agent Runtime; MCP Gateway Public "
-               "qua connector gọi MCP server trên Internet và trên AgentBase Runtime")
+    return svg(W, Hh, s, "Public use case: Internet users call the public Agent Runtime endpoint; a Public MCP Gateway "
+               "calls MCP servers on the Internet and on Agent Runtime through connectors")
 
 
 # ═════════════════════════ 04 · ON-PREM ↔ VPC CONNECTIVITY ═══════════════════
@@ -616,11 +617,11 @@ def d4():
     W, Hh = 1360, 820
     s = []
     # VPC side
-    s.append(group(20, 20, 470, 600, "VPC của KH trên GreenNode · xx.xx.x.x/xx", "vpc"))
+    s.append(group(20, 20, 470, 600, "Customer VPC on GreenNode · xx.xx.x.x/xx", "vpc"))
     s.append(group(36, 60, 300, 120, "subnet-mcp · xx.xx.x.x/xx", "private"))
-    s.append(group(36, 200, 300, 120, "Kết nối AgentBase (private)", "private"))
+    s.append(group(36, 200, 300, 120, "AgentBase connection (private)", "private"))
     s.append(node(60, 96, "mcp", C["mcp"], "MCP servers cloud", ["vServer / VKS · xx.xx.x.x"], "right", badge="gn-server"))
-    s.append(node(60, 236, "mcp-gateway", C["net"], "AgentBase VPC 172.30.0.0/16", ["Runtime · MCP Gateway gọi vào"], "right"))
+    s.append(node(60, 236, "mcp-gateway", C["net"], "AgentBase VPC 172.30.0.0/16", ["Runtime · MCP Gateway connect in"], "right"))
     s.append(node(380, 236, "gn-vnet", C["net"], "VPN GW", ["public IP"]))
     s.append(card(36, 360, 438, 240, "VPC route table", [
         ("xx.xx.x.x/xx", "local (VPC)"),
@@ -629,40 +630,40 @@ def d4():
         "AgentBase (Private mode):",
         ("Route CIDRs", "[\"<CIDR on-prem>\"]"),
         ("connector URL", "https://xx.xx.x.x:8443"),
-        ("vDNS", "bật (bắt buộc)"),
+        ("vDNS", "enabled (required)"),
     ]))
 
     # middle: 2 lựa chọn
-    s.append(text(680, 52, "Chọn 1 trong 2 (hoặc cả 2 để dự phòng)", 12, 700, INK, "middle"))
+    s.append(text(680, 52, "Choose one (or both for redundancy)", 12, 700, INK, "middle"))
     s.append(f'<rect x="530" y="76" width="300" height="220" rx="6" fill="#FDF2F3" stroke="{C["sec"]}" stroke-width="1"/>')
     s.append(text(546, 100, "A · Site-to-Site VPN (IPsec)", 12, 700, C["sec"]))
     s.append(icon(656, 116, "globe", C["gray"]))
     s.append(text(680, 182, "Internet", 10.5, 600, SLATE, "middle"))
-    for r, t in enumerate(["2 tunnel IKEv2 (active / standby)", "static route hoặc BGP", "triển khai nhanh, chi phí thấp",
-                           "băng thông / độ trễ phụ thuộc Internet"]):
+    for r, t in enumerate(["2 tunnel IKEv2 (active / standby)", "static routes or BGP", "quick to set up, low cost",
+                           "bandwidth / latency depend on the Internet"]):
         s.append(text(546, 210 + r * 17, "· " + t, 10.5, 400, SLATE))
     s.append(f'<rect x="530" y="316" width="300" height="200" rx="6" fill="#FEF5EC" stroke="{C["compute"]}" stroke-width="1"/>')
     s.append(text(546, 340, "B · Interconnect / leased line", 12, 700, C["compute"]))
-    for r, t in enumerate(["kênh riêng DC KH ↔ GreenNode", "không đi qua Internet", "băng thông + SLA cố định",
-                           "phù hợp ngân hàng, dữ liệu nhạy cảm", "nên kèm VPN làm đường dự phòng"]):
+    for r, t in enumerate(["dedicated link DC ↔ GreenNode", "does not traverse the Internet", "fixed bandwidth + SLA",
+                           "banking, sensitive data", "pair with VPN as backup"]):
         s.append(text(546, 368 + r * 17, "· " + t, 10.5, 400, SLATE))
 
     # DC side
-    s.append(group(870, 20, 470, 600, "Data center của KH · xx.xx.x.x/xx", "onprem"))
+    s.append(group(870, 20, 470, 600, "Customer data center · xx.xx.x.x/xx", "onprem"))
     s.append(node(900, 236, "firewall", C["gray"], "Customer GW", ["firewall / router"]))
-    s.append(group(1010, 60, 314, 270, "DMZ nội bộ · xx.xx.x.x/xx", "sg"))
+    s.append(group(1010, 60, 314, 270, "Internal DMZ · xx.xx.x.x/xx", "sg"))
     s.append(node(1034, 96, "mcp", C["mcp"], "mcp-erp", ["xx.xx.x.x:8443"], "right"))
     s.append(node(1034, 176, "mcp", C["mcp"], "mcp-hr", ["xx.xx.x.x:8443"], "right"))
-    s.append(node(1034, 256, "server", C["gray"], "DNS nội bộ", ["mcp.corp.local (tùy chọn)"], "right"))
+    s.append(node(1034, 256, "server", C["gray"], "Internal DNS", ["mcp.corp.local (optional)"], "right"))
     s.append(card(886, 360, 438, 240, "DC route table + firewall", [
         ("xx.xx.x.x/xx", "local (on-prem)"),
         ("xx.xx.x.x/xx", "VPC → tunnel / Interconnect"),
-        ("172.30.0.0/16", "→ tunnel (AgentBase qua VPC KH)"),
-        "Firewall rule (inbound tới MCP):",
+        ("172.30.0.0/16", "→ tunnel (AgentBase via customer VPC)"),
+        "Firewall rules (inbound to MCP):",
         ("src 172.30.0.0/16", "allow (AgentBase VPC)"),
-        ("dst = dải MCP on-prem", "tcp/8443"),
-        ("còn lại", "deny"),
-        ("TLS", "cert nội bộ hoặc public CA"),
+        ("dst = on-prem MCP range", "tcp/8443"),
+        ("everything else", "deny"),
+        ("TLS", "internal or public CA certificate"),
     ]))
 
     # links
@@ -672,18 +673,18 @@ def d4():
     s.append(arrow([(296, 260), (380, 260)], "req"))
 
     # CIDR plan
-    s.append(text(20, 670, "Quy hoạch CIDR — 3 dải này không được chồng lấn", 12.5, 700, INK))
-    bars = [(20, 440, C["net"], "xx.xx.x.x/xx", "VPC của KH trên GreenNode"),
+    s.append(text(20, 670, "CIDR plan — these three ranges must not overlap", 12.5, 700, INK))
+    bars = [(20, 440, C["net"], "xx.xx.x.x/xx", "Customer VPC on GreenNode"),
             (470, 440, C["gray"], "xx.xx.x.x/xx", "Data center on-premise"),
-            (920, 420, C["sec"], "172.30.0.0/16", "AgentBase VPC (GreenNode quản lý)")]
+            (920, 420, C["sec"], "172.30.0.0/16", "AgentBase VPC (managed by GreenNode)")]
     for x, w, col, a, b in bars:
         s.append(f'<rect x="{x}" y="686" width="{w}" height="40" rx="4" fill="{col}" fill-opacity="0.12" stroke="{col}"/>')
         s.append(f'<text x="{x+12}" y="711" font-size="12" font-weight="700" fill="{col}" '
                  f'font-family="Menlo,Consolas,monospace">{a}</text>')
         s.append(text(x + w - 12, 711, b, 11, 400, SLATE, "end"))
-    s.append(legend(20, 776, [("vpn", "Site-to-Site VPN (IPsec, qua Internet)"),
-                              ("dx", "Interconnect / leased line (kênh riêng)")]))
-    return svg(W, Hh, s, "Thông mạng on-premise với VPC của KH trên GreenNode: Site-to-Site VPN hoặc Interconnect, route và firewall hai đầu")
+    s.append(legend(20, 776, [("vpn", "Site-to-Site VPN (IPsec, over the Internet)"),
+                              ("dx", "Interconnect / leased line (dedicated)")]))
+    return svg(W, Hh, s, "On-premises to customer VPC connectivity on GreenNode: Site-to-Site VPN or Interconnect, routes and firewall on both ends")
 
 
 # ═════════════════════════ Kiến trúc riêng của từng sample repo ═══════════════
@@ -698,9 +699,9 @@ def a_travel():
     W, Hh = 1500, 470
     s = []
     s.append(group(20, 60, 240, 380, "Internet", "internet"))
-    s.append(people(116, 200) + lbl_below(116, 200, "Người dùng web", ["Chat UI · REST · A2A"]))
-    s.append(group(290, 20, 920, 430, "AgentBase Platform — managed bởi GreenNode", "managed"))
-    s.append(node(330, 60, "gn-ai", C["ai"], "LLM — AI Platform", ["qua sidecar :18080"]))
+    s.append(people(116, 200) + lbl_below(116, 200, "Web users", ["Chat UI · REST · A2A"]))
+    s.append(group(290, 20, 920, 430, "AgentBase Platform — managed by GreenNode", "managed"))
+    s.append(node(330, 60, "gn-ai", C["ai"], "LLM — AI Platform", ["via sidecar :18080"]))
     s.append(node(480, 60, "db", C["db"], "Memory", ["CUSTOM + SEMANTIC"]))
     s.append(node(360, 200, "agent-runtime", C["compute"], "travel-buddy", ["Agent Runtime · UI + LangGraph"]))
     mids = gateway_compact(s, 600, 200, "MCP Gateway · Public", ["tavily"], "Network: Public")
@@ -717,8 +718,8 @@ def a_travel():
     for i, (cx, cy) in enumerate([(262, 240), (384, 185), (560, 240), (1170, mids["tavily"] + 16)], 1):
         s.append(step(cx, cy, i))
     s.append(legend(30, Hh - 14, [("req", "request / data path")]))
-    return _arch_svg(W, Hh, s, "Kiến trúc travel-buddy: người dùng web gọi Agent Runtime; agent dùng LLM qua sidecar, "
-                     "Memory 2 strategy, và gọi Tavily qua MCP Gateway Public")
+    return _arch_svg(W, Hh, s, "travel-buddy architecture: web users call the Agent Runtime; the agent uses the LLM through the sidecar, "
+                     "Memory with two strategies, and Tavily through a Public MCP Gateway")
 
 
 def a_zalo():
@@ -726,17 +727,17 @@ def a_zalo():
     W, Hh = 1500, 470
     s = []
     s.append(group(20, 60, 240, 380, "Internet", "internet"))
-    s.append(people(116, 90) + lbl_below(116, 90, "Khách hàng", ["chat trên Zalo"]))
-    s.append(node(116, 260, "globe", C["gray"], "Zalo Bot Platform", ["gửi webhook"]))
-    s.append(group(290, 20, 1190, 430, "AgentBase Platform — managed bởi GreenNode", "managed"))
-    s.append(node(330, 60, "gn-ai", C["ai"], "LLM — AI Platform", ["qua sidecar :18080"]))
-    s.append(node(480, 60, "db", C["db"], "Memory", ["khách quay lại"]))
+    s.append(people(116, 90) + lbl_below(116, 90, "Customers", ["chat on Zalo"]))
+    s.append(node(116, 260, "globe", C["gray"], "Zalo Bot Platform", ["sends webhooks"]))
+    s.append(group(290, 20, 1190, 430, "AgentBase Platform — managed by GreenNode", "managed"))
+    s.append(node(330, 60, "gn-ai", C["ai"], "LLM — AI Platform", ["via sidecar :18080"]))
+    s.append(node(480, 60, "db", C["db"], "Memory", ["returning guests"]))
     s.append(node(360, 260, "agent-runtime", C["compute"], "zalo-restaurant-bot", ["Agent Runtime · LangGraph"]))
     mids = gateway_compact(s, 600, 200, "MCP Gateway", ["restaurant"], "Network: Public")
     s.append(node(1110, mids["restaurant"] - 24, "mcp", C["mcp"], "zalo-mcp-server", ["Agent Runtime · 7 tools"]))
     s.append(node(1330, mids["restaurant"] - 24, "db", C["db"], "restaurant.db", ["SQLite · menu, booking"]))
 
-    s.append(arrow([(140, 170), (140, 260)], "req", "nhắn tin", (150, 222), "start"))
+    s.append(arrow([(140, 170), (140, 260)], "req", "message", (150, 222), "start"))
     s.append(arrow([(164, 284), (360, 284)], "req", "HTTPS webhook (secret)", (262, 276)))
     s.append(f'<polyline points="384,260 384,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
     s.append(f'<polyline points="354,170 504,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
@@ -748,15 +749,15 @@ def a_zalo():
     for i, (cx, cy) in enumerate([(140, 200), (262, 300), (384, 215), (560, 270), (1075, mids["restaurant"] + 16)], 1):
         s.append(step(cx, cy, i))
     s.append(legend(30, Hh - 14, [("req", "request / data path")]))
-    return _arch_svg(W, Hh, s, "Kiến trúc zalo-restaurant: Zalo gửi webhook tới bot trên Agent Runtime; bot gọi MCP server "
-                     "(runtime riêng, SQLite) qua MCP Gateway")
+    return _arch_svg(W, Hh, s, "zalo-restaurant architecture: Zalo sends webhooks to the bot on Agent Runtime; the bot calls the MCP server "
+                     "(separate runtime, SQLite) through the MCP Gateway")
 
 
 def a_stock():
     """sample-mcp-stock-server: Agent → MCP Gateway (connector stock, API Key) → vn-stock-mcp → 24hMoney."""
     W, Hh = 1500, 560
     s = []
-    s.append(group(20, 20, 1200, 440, "AgentBase Platform — managed bởi GreenNode", "managed"))
+    s.append(group(20, 20, 1200, 440, "AgentBase Platform — managed by GreenNode", "managed"))
     s.append(node(60, 215, "agent-runtime", C["compute"], "Agent", ["travel-buddy · zalo-bot …"]))
     s.append(node(560, 40, "key", C["idc"], "Access Control", ["secret: stock-mcp-key"]))
     mids = gateway_compact(s, 300, 150, "MCP Gateway", ["stock"], "Network: Public")
@@ -764,12 +765,12 @@ def a_stock():
     s.append(node(830, mids["stock"] - 24, "inbound-auth", C["net"], "API key check", ["fail-closed · 401 / 503"]))
     s.append(node(1010, mids["stock"] - 24, "mcp", C["mcp"], "13 MCP tools", ["/mcp · FastMCP"]))
     s.append(card(820, 300, 360, 120, "Tools", [
-        "Thị trường: top · gainers · losers · active · quote",
-        "Doanh nghiệp: search · profile · valuation",
-        "Lịch sử: price · foreign · dividend · plan · tin",
+        "Market: top · gainers · losers · active · quote",
+        "Company: search · profile · valuation",
+        "History: price · foreign · dividend · plan · news",
     ]))
     s.append(group(1250, 20, 230, 440, "Internet", "internet"))
-    s.append(node(1310, mids["stock"] - 24, "globe", C["gray"], "24hMoney API", ["public · không chính thức"]))
+    s.append(node(1310, mids["stock"] - 24, "globe", C["gray"], "24hMoney API", ["public · unofficial"]))
 
     s.append(arrow([(108, 239), (250, 239), (250, 208), (314, 208)], "req", "tools/call", (180, 231)))
     s.append(arrow([(584, 125), (584, 176)], "req", "API key", (594, 142), "start"))
@@ -780,33 +781,33 @@ def a_stock():
                                   (1150, mids["stock"] + 16)], 1):
         s.append(step(cx, cy, i))
     # cùng image chạy ở 3 nơi
-    s.append(text(20, 500, "Cùng 1 image, chạy ở 3 nơi:", 12, 700, INK))
+    s.append(text(20, 500, "One image, three deployment targets:", 12, 700, INK))
     for x, ic, t1, t2 in [(230, "agent-runtime", "Agent Runtime", "gateway Public"),
-                          (560, "gn-vks", "vServer / VKS trong VPC của KH", "gateway Private"),
+                          (560, "gn-vks", "vServer / VKS in the customer VPC", "gateway Private"),
                           (960, "building", "On-premise (VPN / Interconnect)", "gateway Private + Route CIDRs")]:
         s.append(icon(x, 472, ic, C["compute"] if ic != "building" else MUTED))
         s.append(text(x + 58, 492, t1, 11.5, 700, INK) + text(x + 58, 508, t2, 10.5, 400, SLATE))
     s.append(legend(30, Hh - 14, [("req", "request / data path")]))
-    return _arch_svg(W, Hh, s, "Kiến trúc mcp-stock-server: agent gọi tool qua MCP Gateway; connector stock gắn API key "
-                     "từ Access Control; server kiểm tra key rồi gọi API 24hMoney")
+    return _arch_svg(W, Hh, s, "mcp-stock-server architecture: agents call tools through the MCP Gateway; the stock connector attaches an API key "
+                     "from Access Control; the server validates the key and calls the 24hMoney API")
 
 
 def a_byo():
     """sample-byo-agent-mcp-gateway: agent / app chạy ngoài AgentBase → MCP Gateway Public → MCP servers."""
     W, Hh = 1500, 480
     s = []
-    s.append(group(20, 60, 330, 380, "Hạ tầng của bạn (ngoài GreenNode)", "onprem"))
-    s.append(node(80, 120, "app", C["app"], "Agent / app của bạn", ["LangGraph · script · CLI"]))
-    s.append(node(80, 280, "app", C["app"], "Claude Desktop / Cursor", ["qua mcp-remote"]))
-    s.append(group(400, 20, 750, 440, "AgentBase Platform — managed bởi GreenNode", "managed"))
-    s.append(node(720, 40, "key", C["idc"], "Access Control", ["secret của MCP server"]))
+    s.append(group(20, 60, 330, 380, "Your infrastructure (outside GreenNode)", "onprem"))
+    s.append(node(80, 120, "app", C["app"], "Your agent / app", ["LangGraph · script · CLI"]))
+    s.append(node(80, 280, "app", C["app"], "Claude Desktop / Cursor", ["via mcp-remote"]))
+    s.append(group(400, 20, 750, 440, "AgentBase Platform — managed by GreenNode", "managed"))
+    s.append(node(720, 40, "key", C["idc"], "Access Control", ["MCP server secrets"]))
     mids = gateway_compact(s, 450, 120, "MCP Gateway · Public", ["tavily", "stock"], "Network: Public")
-    s.append(node(1000, mids["stock"] - 24, "mcp", C["mcp"], "MCP server", ["trên Agent Runtime"]))
+    s.append(node(1000, mids["stock"] - 24, "mcp", C["mcp"], "MCP server", ["on Agent Runtime"]))
     s.append(group(1180, 60, 300, 380, "Internet", "internet"))
     s.append(node(1250, mids["tavily"] - 24, "mcp", C["mcp"], "MCP SaaS", ["Tavily · GitHub …"]))
-    s.append(card(450, 340, 560, 90, "Lưu ý", [
-        "Gọi từ bên ngoài → gateway phải là Public. Gateway Private chỉ",
-        "truy cập được trong mạng private của KH.",
+    s.append(card(450, 340, 560, 90, "Note", [
+        "External callers need a Public gateway. A Private gateway is only",
+        "reachable from the customer private network.",
     ]))
 
     s.append(f'<polyline points="128,144 380,144" fill="none" stroke="{INK}" stroke-width="1.6"/>')
@@ -820,13 +821,57 @@ def a_byo():
     for i, (cx, cy) in enumerate([(254, 160), (420, 178), (1110, mids["tavily"]), (945, mids["stock"])], 1):
         s.append(step(cx, cy, i))
     s.append(legend(30, Hh - 14, [("req", "request / data path")]))
-    return _arch_svg(W, Hh, s, "Kiến trúc BYO agent: agent hoặc app chạy ngoài AgentBase gọi MCP Gateway Public bằng IAM "
-                     "token hoặc JWT; gateway kiểm tra policy rồi gọi MCP server")
+    return _arch_svg(W, Hh, s, "BYO agent architecture: an agent or app running outside AgentBase calls a Public MCP Gateway with an IAM "
+                     "token or JWT; the gateway checks policy and calls the MCP server")
+
+
+def a_onprem():
+    """sample-onprem-mcp-vpn: Agent → Private MCP Gateway → customer VPC → VPN Site-to-Site → on-prem MCP."""
+    W, Hh = 1600, 560
+    s = []
+    s.append(group(20, 20, 710, 500, "AgentBase Platform — managed by GreenNode", "managed"))
+    s.append(abvpc(36, 60, 678, 444))
+    s.append(node(80, 200, "agent-runtime", C["compute"], "Agent", ["Agent Runtime"]))
+    mids = gateway_compact(s, 220, 120, "MCP Gateway · Private", ["erp@onprem"], "Network: Private · Route CIDRs = on-prem")
+    s.append(node(460, 340, "key", C["idc"], "Access Control", ["secret: onprem-mcp-key"]))
+    s.append(group(760, 20, 400, 500, "Customer VPC on GreenNode · 10.20.0.0/16", "vpc"))
+    s.append(node(910, mids["erp@onprem"] - 24, "gn-vnet", C["net"], "VPN Site-to-Site", ["GreenNode vNetwork"]))
+    s.append(card(780, 330, 360, 120, "Route table (example)", [
+        ("10.20.0.0/16", "local"),
+        ("172.30.0.0/16", "→ AgentBase (private)"),
+        ("192.168.0.0/16", "→ VPN Site-to-Site"),
+    ]))
+    s.append(group(1190, 20, 390, 500, "Customer data center · 192.168.0.0/16", "onprem"))
+    s.append(node(1230, mids["erp@onprem"] - 24, "firewall", C["gray"], "IPsec gateway", ["strongSwan / firewall"]))
+    s.append(node(1440, mids["erp@onprem"] - 24, "mcp", C["mcp"], "onprem-mcp", ["API key · audit log"]))
+    s.append(node(1440, 340, "db", C["gray"], "ERP · HR · Inventory", ["stays on-premises"]))
+    s.append(card(1205, 425, 185, 85, "Firewall (example)", [
+        ("src 172.30.0.0/16", "allow"),
+        ("dst tcp/8443", "MCP only"),
+        ("everything else", "deny"),
+    ]))
+
+    e = mids["erp@onprem"]
+    s.append(arrow([(128, 224), (180, 224), (180, 178), (234, 178)], "req", "tools/call", (150, 216)))
+    s.append(arrow([(484, 340), (484, 202)], "req", "API key", (494, 300), "start"))
+    s.append(arrow([(660, e), (910, e)], "req", "private", (840, e - 8)))
+    s.append(arrow([(958, e), (1230, e)], "vpn", both=True))
+    s.append(text(1094, e - 10, "IPsec IKEv2 tunnel", 10.5, 600, C["sec"], "middle", halo=True))
+    s.append(text(1094, e + 22, "over the Internet", 10.5, 400, C["sec"], "middle", halo=True))
+    s.append(arrow([(1278, e), (1440, e)], "req", "tcp/8443", (1359, e - 8)))
+    s.append(arrow([(1464, e + 66), (1464, 340)], "req", "SQL", (1474, 300), "start"))
+    for i, (cx, cy) in enumerate([(180, 200), (484, 270), (770, e + 16), (1094, e + 40), (1359, e + 16), (1464, 320)], 1):
+        s.append(step(cx, cy, i))
+    s.append(legend(30, Hh - 14, [("req", "request / data path"), ("vpn", "Site-to-Site VPN (IPsec)")]))
+    return _arch_svg(W, Hh, s, "On-premises MCP architecture: an agent on AgentBase calls a Private MCP Gateway, which reaches "
+                     "the customer VPC and the on-premises MCP server through GreenNode VPN Site-to-Site")
+
 
 
 ROOT = OUT.parents[2]          # thư mục sample-repos (chứa các repo anh em)
 ARCH_JOBS = [("sample-travel-buddy", a_travel), ("sample-zalo-restaurant", a_zalo),
-             ("sample-mcp-stock-server", a_stock), ("sample-byo-agent-mcp-gateway", a_byo)]
+             ("sample-mcp-stock-server", a_stock), ("sample-byo-agent-mcp-gateway", a_byo),
+             ("sample-onprem-mcp-vpn", a_onprem)]
 
 
 JOBS = [("01-connectivity-map.svg", d1), ("02-uc-public.svg", d_public), ("03-uc-private-cloud.svg", d2),
