@@ -446,17 +446,18 @@ def scene(show, conns, title):
 
     s.append(group(20, 130, 1320, 1170 + DY, "GreenNode Cloud", "cloud"))
     s.append(group(34, 166, 1292, 1120 + DY, "Region HCM", "region"))
-    s.append(group(50, 200, 1260, 560 + DY, "AgentBase Platform — managed by GreenNode", "managed"))
+    s.append(group(50, 200, 1260, (670 if two_gw else 560), "AgentBase Platform — managed by GreenNode", "managed"))
     s.append(node(90, 250, "gn-cr", C["compute"], "Container Registry", ["vCR"]))
     shared_services(s, 180, 236, 460)
-    s.append(abvpc(70, 400, 1220, 350 + DY))
+    # Gateway Public = shared public endpoint của AgentBase → nằm NGOÀI AgentBase VPC; VPC chỉ cho phần Private
+    s.append(abvpc(70, 450, 1220, 410) if two_gw else abvpc(70, 400, 1220, 350))
     s.append(node(400, 520, "agent-runtime", C["compute"], "AgentBase Runtime", ["sidecar LLM :18080"]))
     if two_gw:
-        mids = gateway_compact(s, 680, 430, "MCP Gateway · Public", [n for n in conns if n in ("tavily", "stock")],
-                               "Network: Public")
+        mids = gateway_compact(s, 680, 236, "MCP Gateway · Public", [n for n in conns if n in ("tavily", "stock")],
+                               "Network: Public (shared public endpoint)")
         mids.update(gateway_compact(s, 680, 636, "MCP Gateway · Private", [n for n in conns if n not in ("tavily", "stock")],
                                     "Network: Private → customer VPC"))
-        gw_entries = [488, 694]
+        gw_entries = [294, 694]
     else:
         mids = gateway_block(s, conns, "Network: Private → customer VPC", y=420)
         gw_entries = [484]
@@ -491,7 +492,8 @@ def scene(show, conns, title):
     steps.append((324, 650 + DY // 2))
     s.append(arrow([(114, 345), (114, 388), (412, 388), (412, 520)], "req", "pull image", (240, 380)))
     steps.append((114, 366))
-    s.append(arrow([(436, 520), (436, 370)], "req", ["LLM via sidecar :18080", "Memory · Access Control"], (446, 440), "start"))
+    s.append(arrow([(436, 520), (436, 370)], "req", ["LLM via sidecar :18080", "Memory · Access Control"],
+                   (446, 400 if two_gw else 440), "start"))
     steps.append((436, 500))
     if two_gw:
         s.append(f'<polyline points="448,544 660,544" fill="none" stroke="{INK}" stroke-width="1.6"/>')

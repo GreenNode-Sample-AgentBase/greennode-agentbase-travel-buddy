@@ -14,18 +14,18 @@ The diagrams follow the AWS Architecture Diagram layout style, use the official 
 
 | Component | Location | Role |
 |---|---|---|
-| **Agent Runtime** | **AgentBase VPC** (`172.30.0.0/16`), managed by GreenNode | Runs the agent. Network is **Public** (through the shared AgentBase public gateway) or **Private** (select your VPC + Subnet + Route CIDRs → traffic goes through **VPC Peering**) |
+| **Agent Runtime** | AgentBase Platform, managed by GreenNode — **Public**: shared public endpoint · **Private**: **AgentBase VPC** (`172.30.0.0/16`) | Runs the agent. Network is **Public** (through the shared AgentBase public gateway) or **Private** (select your VPC + Subnet + Route CIDRs → traffic goes through **VPC Peering**) |
 | **Sidecar LLM Proxy** | Injected automatically into the agent (`localhost:18080`) | All LLM calls go through the sidecar, not through MCP Gateway |
 | **Container Registry (vCR)** | AgentBase Platform, private per organization | The Runtime pulls the agent image from vCR. You can use a **public registry** (Docker Hub, GHCR, etc.) instead of vCR if you accept pulling over the Internet |
 | **Memory · Access Control** | AgentBase Platform | Memory (short-term + long-term) and Access Control (Agent Identity, API Key / OAuth2 credentials), called through the SDK |
-| **MCP Gateway** | **AgentBase VPC** (managed) | **Proxy for every MCP tool call**: Inbound Auth (IAM Permissions / JWT) → Policy Group (ALLOW / DENY) → MCP Connector. Network is **Public** or **Private** (your VPC + Subnet + Route CIDRs, through VPC Peering) |
+| **MCP Gateway** | AgentBase Platform, managed — **Public**: shared public endpoint · **Private**: **AgentBase VPC** | **Proxy for every MCP tool call**: Inbound Auth (IAM Permissions / JWT) → Policy Group (ALLOW / DENY) → MCP Connector. Network is **Public** or **Private** (your VPC + Subnet + Route CIDRs, through VPC Peering) |
 | **MCP Connector** | Inside MCP Gateway | Each connector represents one MCP server: an **MCP endpoint URL** + **Outbound Auth** (OAuth / API Key 2LO·3LO, Inbound forward, No authorization). Secrets come from Access Control |
 | **VPC Peering** | Between the AgentBase VPC and your VPC | **Bidirectional** private connection that does not traverse the Internet. It must be set up before using Private mode — **contact GreenNode support to enable it** |
 | **MCP server** | Internet · AgentBase Runtime · your VPC · on-premises | The gateway calls it at the connector URL. For a private MCP server: Private gateway → VPC Peering → your VPC; for on-premises, traffic continues over Site-to-Site VPN / Interconnect (on your side) |
 
 Tool-call flow per the documentation: **Agent → MCP Gateway (Inbound Auth) → Policy Group → MCP Connector (Outbound Auth) → MCP Server.**
 
-Agent Runtime and MCP Gateway **do not run in your VPC**: they run in the AgentBase VPC, and Private mode only connects the network to your VPC through VPC Peering.
+Agent Runtime and MCP Gateway **never run in your VPC**. In Public mode they are reached through AgentBase's shared public endpoint (this is why the overview diagram draws the **Public** gateway outside the AgentBase VPC); in Private mode they run in the AgentBase VPC and only the network is connected to your VPC through VPC Peering.
 
 ---
 
@@ -156,7 +156,7 @@ Scenario: the agent serves users on the Internet and only uses public tools (Saa
 |---|---|---|
 | Your VPC on GreenNode | `xx.xx.x.x/xx` | Subnets for Agent Runtime, MCP Gateway and cloud-hosted MCP servers |
 | On-premises data center | `xx.xx.x.x/xx` | Range to add to the MCP Gateway **Route CIDRs** (and to the Runtime's if the agent calls it directly) |
-| AgentBase VPC | `172.30.0.0/16` | Where Agent Runtime + MCP Gateway run; your VPC and data center must not use this range |
+| AgentBase VPC | `172.30.0.0/16` | Where Private-mode Agent Runtime + MCP Gateway run; your VPC and data center must not use this range |
 
 **Step 2: Choose a connectivity option.**
 

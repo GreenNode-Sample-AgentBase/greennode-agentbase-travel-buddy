@@ -43,7 +43,7 @@ The 3-column dark UI: **Users/Sessions** · **Chat** (markdown + memory callout,
 
 ![AgentBase connectivity map](docs/network/01-connectivity-map.svg)
 
-- **Agent Runtime** and **MCP Gateway** run in the **AgentBase VPC** (`172.30.0.0/16`, managed by GreenNode) — not in your VPC. **Public** mode goes through a public endpoint; **Private** mode connects privately to your VPC (select VPC + Subnet + Route CIDRs). Images are pulled from **Container Registry (vCR)**, or from a public registry if you agree to that.
+- **Agent Runtime** and **MCP Gateway** are managed by GreenNode on the AgentBase Platform — never inside your VPC. In **Public** mode they are reached through AgentBase's **shared public endpoint**; in **Private** mode they run in the **AgentBase VPC** (`172.30.0.0/16`) and connect privately to your VPC (select VPC + Subnet + Route CIDRs). Images are pulled from **Container Registry (vCR)**, or from a public registry if you agree to that.
 - **LLM, Memory, Access Control** are GreenNode platform services. The LLM is an OpenAI-compatible endpoint: this sample calls it directly via `LLM_BASE_URL`, and on Agent Runtime you can route it through the Sidecar LLM Proxy instead (see [LLM endpoint](#llm-endpoint-optional-sidecar-llm-proxy)). Memory and Access Control are reached through the SDK using an IAM service account that the runtime injects automatically.
 - **MCP Gateway** = Inbound Auth (IAM Permissions / JWT) → Policy Group → **MCP Connector** (URL + Outbound Auth). A **Public** gateway calls MCP servers on the Internet or MCP servers running on Agent Runtime; a **Private** gateway calls MCP servers in your VPC and on-premises (your VPC → VPN / Interconnect).
 
