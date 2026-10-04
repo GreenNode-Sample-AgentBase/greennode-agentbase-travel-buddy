@@ -38,7 +38,8 @@ ICONS = OUT / "icons"
 SYMBOLS = {"gn-ai": "ai-platform.svg", "gn-cr": "container-registry.svg", "gn-server": "vserver.svg",
            "gn-vks": "vks.svg", "gn-vdb": "vdb.svg", "gn-vnet": "vnetwork.svg", "mcp": "mcp.svg",
            "agent-runtime": "agent-runtime.svg", "policy": "policy.svg",
-           "mcp-gateway": "mcp-gateway.svg", "inbound-auth": "inbound-auth.svg"}
+           "mcp-gateway": "mcp-gateway.svg", "inbound-auth": "inbound-auth.svg",
+           "langfuse": "langfuse.svg"}
 FONT = "Helvetica Neue,Helvetica,Arial,sans-serif"
 
 
@@ -211,6 +212,7 @@ def group(x, y, w, h, title, kind):
         "managed": (GN_GREEN, "", None, "#0A8F3C", "gnmark"),
         "vpc": (C["net"], "", None, C["net"], "gn-vnet"),
         "private": (None, "", "#E6F6F7", C["teal"], "lock"),
+        "public": (None, "", "#F2F6E8", "#5A7D12", "globe-tab"),
         "onprem": (MUTED, "", None, INK, "building"),
         "internet": (MUTED, "6 4", None, INK, "globe"),
         "shared": (MUTED, "4 3", "#FAFBFC", SLATE, None),
@@ -220,7 +222,11 @@ def group(x, y, w, h, title, kind):
     out = (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill or "none"}" '
            f'stroke="{stroke or "none"}" stroke-width="1.5"' + (f' stroke-dasharray="{dash}"' if dash else '') + '/>')
     tx = x + 8
-    if ic == "lock":
+    if ic == "globe-tab":
+        out += f'<rect x="{x}" y="{y}" width="26" height="26" fill="#7AA116"/>'
+        out += f'<g transform="translate({x} {y}) scale(0.5417)">{GLYPH["globe"](0, 0)}</g>'
+        tx = x + 34
+    elif ic == "lock":
         out += (f'<rect x="{x}" y="{y}" width="26" height="26" fill="{C["teal"]}"/>'
                 f'<rect x="{x+8}" y="{y+12}" width="10" height="8" rx="1.5" fill="#FFFFFF"/>'
                 + path(f"M{x+10} {y+12}v-2.5a3 3 0 0 1 6 0v2.5", 1.8))
@@ -298,20 +304,21 @@ def legend(x, y, items):
     return out
 
 
-def defs():
+def defs(body):
     out = "<defs>"
     for mid, col in [("a-ink", INK), ("a-org", C["compute"]), ("a-red", C["sec"])]:
         out += (f'<marker id="{mid}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" '
                 f'orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="{col}"/></marker>')
-    out += "".join(symbol(k, v) for k, v in SYMBOLS.items())
+    out += "".join(symbol(k, v) for k, v in SYMBOLS.items() if f'href="#{k}"' in body)   # chỉ symbol được dùng
     return out + "</defs>"
 
 
 def svg(w, h, body, label):
     NODE_BOXES.clear()   # registry chỉ có hiệu lực trong 1 diagram
+    body = "".join(body)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
             f'font-family="{FONT}" role="img" aria-label="{esc(label)}">'
-            f'<rect width="{w}" height="{h}" fill="#FFFFFF"/>{defs()}{"".join(body)}</svg>')
+            f'<rect width="{w}" height="{h}" fill="#FFFFFF"/>{defs(body)}{body}</svg>')
 
 
 def g_registry(x, y):
@@ -358,6 +365,7 @@ CONNECTORS = {
     "github": ("https://<GitHub MCP endpoint>", "OAuth · 3LO"),
     "restaurant": ("zalo-mcp-server endpoint", "No authorization"),
     "erp@onprem": ("https://<onprem-host>:8443/mcp", "API Key · X-Api-Key"),
+    "restaurant@vpc": ("http://<mcp-private-ip>:8080/mcp", "API Key · X-Api-Key"),
 }
 
 
@@ -725,34 +733,58 @@ def a_travel():
 
 
 def a_zalo():
-    """sample-zalo-restaurant: Zalo → webhook → bot Runtime → MCP Gateway → MCP server Runtime (SQLite)."""
-    W, Hh = 1500, 470
+    """sample-zalo-restaurant: Zalo → public webhook proxy → Private Agent Runtime → Private MCP Gateway →
+    MCP server in the customer VPC; traces to self-hosted Langfuse (private, admins via client VPN)."""
+    W, Hh = 1600, 870
     s = []
-    s.append(group(20, 60, 240, 380, "Internet", "internet"))
-    s.append(people(116, 90) + lbl_below(116, 90, "Customers", ["chat on Zalo"]))
-    s.append(node(116, 260, "globe", C["gray"], "Zalo Bot Platform", ["sends webhooks"]))
-    s.append(group(290, 20, 1190, 430, "AgentBase Platform — managed by GreenNode", "managed"))
-    s.append(node(330, 60, "gn-ai", C["ai"], "LLM — AI Platform", ["via sidecar :18080"]))
-    s.append(node(480, 60, "db", C["db"], "Memory", ["returning guests"]))
-    s.append(node(360, 260, "agent-runtime", C["compute"], "zalo-restaurant-bot", ["Agent Runtime · LangGraph"]))
-    mids = gateway_compact(s, 600, 200, "MCP Gateway", ["restaurant"], "Network: Public")
-    s.append(node(1110, mids["restaurant"] - 24, "mcp", C["mcp"], "zalo-mcp-server", ["Agent Runtime · 7 tools"]))
-    s.append(node(1330, mids["restaurant"] - 24, "db", C["db"], "restaurant.db", ["SQLite · menu, booking"]))
+    s.append(group(20, 60, 230, 760, "Internet", "internet"))
+    s.append(people(100, 90) + lbl_below(100, 90, "Customers", ["chat on Zalo"]))
+    s.append(node(100, 250, "globe", C["gray"], "Zalo Bot Platform", ["sends webhooks"]))
+    s.append(node(100, 700, "app", C["app"], "Admin", ["VPN client"]))
 
-    s.append(arrow([(140, 170), (140, 260)], "req", "message", (150, 222), "start"))
-    s.append(arrow([(164, 284), (360, 284)], "req", "HTTPS webhook (secret)", (262, 276)))
-    s.append(f'<polyline points="384,260 384,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
-    s.append(f'<polyline points="354,170 504,170" fill="none" stroke="{INK}" stroke-width="1.6"/>')
-    s.append(arrow([(354, 170), (354, 146)], "req"))
-    s.append(arrow([(504, 170), (504, 146)], "req"))
-    s.append(arrow([(408, 284), (560, 284), (560, 258), (614, 258)], "req", "tools/call", (484, 276)))
-    s.append(arrow([(1040, mids["restaurant"]), (1110, mids["restaurant"])], "req"))
-    s.append(arrow([(1158, mids["restaurant"]), (1330, mids["restaurant"])], "req", "SQL", (1244, mids["restaurant"] - 8)))
-    for i, (cx, cy) in enumerate([(140, 200), (262, 300), (384, 215), (560, 270), (1075, mids["restaurant"] + 16)], 1):
+    s.append(group(270, 20, 1310, 820, "GreenNode Cloud", "cloud"))
+    s.append(group(300, 60, 1250, 420, "AgentBase Platform — managed by GreenNode", "managed"))
+    shared_services(s, 320, 96, 420)
+    s.append(abvpc(310, 246, 1230, 224))
+    s.append(node(580, 300, "agent-runtime", C["compute"], "AgentBase Runtime", ["agent image only · Private"]))
+    mids = gateway_compact(s, 900, 266, "MCP Gateway · Private", ["restaurant@vpc"], "Network: Private → customer VPC")
+
+    s.append(group(300, 510, 1250, 300, "Customer VPC · 10.20.0.0/16", "vpc"))
+    s.append(group(320, 550, 260, 245, "Public subnet", "public"))
+    s.append(node(460, 580, "gn-vnet", C["net"], "Webhook proxy", ["POST /webhook/zalo only"]))
+    s.append(node(380, 700, "firewall", C["gray"], "Admin VPN", ["pfSense / OpenVPN"]))
+    s.append(group(640, 550, 580, 245, "Private subnet · observability", "private"))
+    s.append(node(760, 580, "langfuse", C["ai"], "Langfuse", ["self-hosted · :3000"]))
+    s.append(node(760, 700, "db", C["gray"], "Langfuse storage", ["Postgres · ClickHouse"]))
+    s.append(card(880, 585, 320, 150, "Security groups (example)", [
+        ("proxy :443", "Internet (webhook)"),
+        ("mcp :8080", "from 172.30.0.0/16"),
+        ("langfuse :3000", "agent + VPN clients"),
+        ("vpn :1194", "admin IPs only"),
+    ]))
+    s.append(group(1250, 550, 285, 245, "Private subnet · MCP", "private"))
+    s.append(node(1300, 580, "mcp", C["mcp"], "zalo-mcp-server", ["vServer / VKS"], badge="gn-server"))
+    s.append(node(1300, 700, "db", C["db"], "SQLite volume", ["menu · bookings"]))
+
+    r = mids["restaurant@vpc"]
+    s.append(arrow([(124, 175), (124, 250)], "req", "message", (134, 218), "start"))
+    s.append(arrow([(148, 274), (260, 274), (260, 604), (460, 604)], "req", "HTTPS webhook", (200, 266)))
+    s.append(arrow([(484, 580), (484, 324), (580, 324)], "req", "private", (532, 316)))
+    s.append(arrow([(604, 300), (604, 226)], "req", "LLM · Memory", (614, 268), "start"))
+    s.append(arrow([(628, 324), (914, 324)], "req", "MCP tools/call", (770, 316)))
+    s.append(arrow([(1350, r), (1500, r), (1500, 604), (1348, 604)], "req", "API key", (1490, 425), "end"))
+    s.append(arrow([(620, 392), (620, 596), (760, 596)], "req", "traces (OTel)", (690, 588)))
+    s.append(arrow([(148, 724), (380, 724)], "vpn", both=True))
+    s.append(arrow([(428, 724), (720, 724), (720, 612), (760, 612)], "req", "Langfuse UI", (574, 716)))
+    s.append(arrow([(784, 668), (784, 700)], "req"))
+    s.append(arrow([(1324, 668), (1324, 700)], "req"))
+    for i, (cx, cy) in enumerate([(124, 205), (200, 290), (484, 450), (604, 250), (770, 340), (1500, 540),
+                                  (620, 500), (264, 724)], 1):
         s.append(step(cx, cy, i))
-    s.append(legend(30, Hh - 14, [("req", "request / data path")]))
-    return _arch_svg(W, Hh, s, "zalo-restaurant architecture: Zalo sends webhooks to the bot on Agent Runtime; the bot calls the MCP server "
-                     "(separate runtime, SQLite) through the MCP Gateway")
+    s.append(legend(30, Hh - 14, [("req", "request / data path"), ("vpn", "client-to-site VPN (admins)")]))
+    return _arch_svg(W, Hh, s, "Zalo restaurant architecture: Zalo webhooks reach a private Agent Runtime through a public "
+                     "proxy; the agent calls the MCP server in the customer VPC via a Private MCP Gateway and sends traces "
+                     "to a private self-hosted Langfuse that admins open over a client VPN")
 
 
 def a_stock():

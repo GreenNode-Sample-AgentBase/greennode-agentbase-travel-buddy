@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="640" height="640" fill="none">
+  <!-- Langfuse: two interlaced strands (red / blue); red over at the four side crossings, blue over at the two centre crossings -->
+  <defs>
+    <clipPath id="over"><circle cx="95" cy="238" r="58"/><circle cx="545" cy="238" r="58"/><circle cx="95" cy="402" r="58"/><circle cx="545" cy="402" r="58"/></clipPath>
+  </defs>
+  <path id="strand-red" d="M620 170C540 240 490 270 430 270C340 270 300 150 210 150C120 150 65 230 65 320C65 410 120 490 210 490C300 490 340 370 430 370C490 370 540 400 620 475" stroke="#FF5A5F" stroke-width="60"/>
+  <path d="M20 175C100 240 150 270 210 270C300 270 340 150 430 150C520 150 570 230 570 320C570 410 520 490 430 490C340 490 300 370 210 370C150 370 100 400 20 460" stroke="#4E9CFF" stroke-width="60"/>
+  <path d="M620 170C540 240 490 270 430 270C340 270 300 150 210 150C120 150 65 230 65 320C65 410 120 490 210 490C300 490 340 370 430 370C490 370 540 400 620 475" stroke="#FF5A5F" stroke-width="60" clip-path="url(#over)"/>
+</svg>
